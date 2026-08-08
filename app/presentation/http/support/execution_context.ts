@@ -15,7 +15,7 @@ export function toExecutionContext(ctx: HttpContext): ExecutionContext {
     actorId: user?.id ?? null,
     actorType: user ? 'user' : 'api',
     organizationId: user?.organizationId ?? '',
-    ip: ctx.request.id(),
+    ip: ctx.request.ip(),
     userAgent: ctx.request.header('user-agent'),
     requestId: ctx.request.id(),
   }

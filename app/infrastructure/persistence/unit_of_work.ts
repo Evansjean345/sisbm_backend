@@ -51,7 +51,7 @@ export class LucidUnitOfWork implements UnitOfWork {
             aggregate_type: event.eventName.split('.')[0],
             aggregate_id: event.aggregateId,
             topic: event.eventName,
-            pyaload: JSON.stringify({
+            payload: JSON.stringify({
               eventName: event.eventName,
               aggregateId: event.aggregateId,
               occurredAt: event.occurredAt.toISOString(),

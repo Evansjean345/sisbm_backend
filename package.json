@@ -6,7 +6,7 @@
   "description": "SISBM CORE - Plateforme de tracking GPS et de supervision de flotte",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "imports": {
     "#domain/*": "./app/domain/*.js",

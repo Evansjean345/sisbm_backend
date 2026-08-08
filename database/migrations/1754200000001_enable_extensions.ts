@@ -10,7 +10,6 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
  * - pgcrypto     : gen_random_uuid()  (natif dès PG13, l'extension reste utile pour digest())
  * - pg_trgm      : recherche floue sur immatriculations / noms de véhicules
  */
-
 export default class extends BaseSchema {
   async up() {
     this.schema.raw('CREATE EXTENSION IF NOT EXISTS postgis')
@@ -28,6 +27,28 @@ export default class extends BaseSchema {
       BEGIN
         NEW.updated_at := now();
         RETURN NEW;
+      END;
+      $$;
+    `)
+
+    // Création idempotente d'une partition mensuelle.
+    // Appelée par la tâche planifiée mensuelle et par les migrations d'amorçage.
+    this.schema.raw(`
+      CREATE OR REPLACE FUNCTION sisbm_ensure_month_partition(p_parent text, p_month date)
+      RETURNS text
+      LANGUAGE plpgsql AS $$
+      DECLARE
+        v_start date := date_trunc('month', p_month)::date;
+        v_end   date := (date_trunc('month', p_month) + interval '1 month')::date;
+        v_name  text := p_parent || '_' || to_char(v_start, 'YYYYMM');
+      BEGIN
+        IF to_regclass(v_name) IS NULL THEN
+          EXECUTE format(
+            'CREATE TABLE %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L)',
+            v_name, p_parent, v_start, v_end
+          );
+        END IF;
+        RETURN v_name;
       END;
       $$;
     `)

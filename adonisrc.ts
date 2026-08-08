@@ -1,42 +1,25 @@
-import { indexEntities } from '@adonisjs/core'
 import { defineConfig } from '@adonisjs/core/app'
-import { generateRegistry } from '@tuyau/core/hooks'
 
 export default defineConfig({
   /*
   |--------------------------------------------------------------------------
-  | Experimental flags
+  | Commandes
   |--------------------------------------------------------------------------
-  |
-  | The following features will be enabled by default in the next major release
-  | of AdonisJS. You can opt into them today to avoid any breaking changes
-  | during upgrade.
-  |
-  */
-  experimental: {},
-
-  /*
-  |--------------------------------------------------------------------------
-  | Commands
-  |--------------------------------------------------------------------------
-  |
-  | List of ace commands to register from packages. The application commands
-  | will be scanned automatically from the "./commands" directory.
-  |
   */
   commands: [
     () => import('@adonisjs/core/commands'),
     () => import('@adonisjs/lucid/commands'),
-    () => import('@adonisjs/session/commands'),
+    () => import('@adonisjs/mail/commands'),
   ],
 
   /*
   |--------------------------------------------------------------------------
-  | Service providers
+  | Fournisseurs de services
   |--------------------------------------------------------------------------
   |
-  | List of service providers to import and register when booting the
-  | application
+  | L'ordre compte : `container_provider` enregistre les liaisons
+  | port -> adaptateur de la Clean Architecture et doit venir APRÈS les
+  | providers d'infrastructure dont il dépend (base de données, redis).
   |
   */
   providers: [
@@ -47,46 +30,42 @@ export default defineConfig({
       environment: ['repl', 'test'],
     },
     () => import('@adonisjs/core/providers/vinejs_provider'),
-    () => import('@adonisjs/session/session_provider'),
-    () => import('@adonisjs/shield/shield_provider'),
-    () => import('@adonisjs/lucid/database_provider'),
     () => import('@adonisjs/cors/cors_provider'),
+    () => import('@adonisjs/lucid/database_provider'),
     () => import('@adonisjs/auth/auth_provider'),
-    () => import('#providers/api_provider'),
+    () => import('@adonisjs/redis/redis_provider'),
+    () => import('@adonisjs/limiter/limiter_provider'),
+    () => import('@adonisjs/mail/mail_provider'),
+    () => import('@adonisjs/transmit/transmit_provider'),
+    () => import('#providers/container_provider'),
   ],
 
   /*
   |--------------------------------------------------------------------------
-  | Preloads
+  | Préchargements
   |--------------------------------------------------------------------------
-  |
-  | List of modules to import before starting the application.
-  |
   */
-  preloads: [
-    () => import('#start/routes'),
-    () => import('#start/kernel'),
-    () => import('#start/validator'),
-  ],
+  preloads: [() => import('#start/routes'), () => import('#start/kernel')],
 
   /*
   |--------------------------------------------------------------------------
-  | Tests
+  | Suites de tests
   |--------------------------------------------------------------------------
   |
-  | List of test suites to organize tests by their type. Feel free to remove
-  | and add additional suites.
+  | `unit` couvre le domaine et l'application : aucune base de données,
+  | aucun réseau, exécution en quelques millisecondes.
+  | `functional` couvre les adaptateurs et les routes HTTP.
   |
   */
   tests: {
     suites: [
       {
-        files: ['tests/unit/**/*.spec.{ts,js}'],
+        files: ['tests/unit/**/*.spec.ts', 'tests/unit/**/*.spec.js'],
         name: 'unit',
         timeout: 2000,
       },
       {
-        files: ['tests/functional/**/*.spec.{ts,js}'],
+        files: ['tests/functional/**/*.spec.ts', 'tests/functional/**/*.spec.js'],
         name: 'functional',
         timeout: 30000,
       },
@@ -96,21 +75,32 @@ export default defineConfig({
 
   /*
   |--------------------------------------------------------------------------
-  | Metafiles
+  | Répertoires
   |--------------------------------------------------------------------------
   |
-  | A collection of files you want to copy to the build folder when creating
-  | the production build.
+  | L'organisation par bounded context remplace l'arborescence par type
+  | technique du starter. Les générateurs `ace make:*` sont recâblés en
+  | conséquence.
   |
   */
-  metaFiles: [],
-
-  hooks: {
-    init: [
-      indexEntities({
-        transformers: { enabled: true },
-      }),
-      generateRegistry(),
-    ],
+  directories: {
+    config: 'config',
+    commands: 'commands',
+    database: 'database',
+    migrations: 'database/migrations',
+    seeders: 'database/seeders',
+    providers: 'providers',
+    start: 'start',
+    tests: 'tests',
+    // Organisation par COUCHE (Clean Architecture canonique) : les
+    // générateurs `ace make:*` sont recâblés en conséquence.
+    httpControllers: 'app/presentation/http/controllers',
+    validators: 'app/presentation/http/validators',
+    middleware: 'app/presentation/http/middleware',
+    exceptions: 'app/presentation/http',
+    models: 'app/infrastructure/persistence/models',
+    services: 'app/application',
+    events: 'app/domain',
+    listeners: 'app/application',
   },
 })

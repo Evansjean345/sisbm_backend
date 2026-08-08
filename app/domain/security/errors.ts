@@ -21,7 +21,7 @@ export class UnsafeSpeedError extends DomainError {
  * Couper le moteur d'un véhicule lancé est un risque humain, pas un bug.
  */
 export class VehicleInMotionError extends DomainError {
-  readonly code = 'E_VEHICULE_IN_MOTION'
+  readonly code = 'E_VEHICLE_IN_MOTION'
   readonly httpStatus = 422
 
   constructor(currentKph: number, limitKph: number) {
@@ -46,7 +46,7 @@ export class InvalidReasonError extends DomainError {
 /** Séparation des rôles : le valideur ne peut pas être le demandeur. */
 export class SelfValidationError extends DomainError {
   readonly code = 'E_SELF_VALIDATION'
-  readonly httpStatus = 422
+  readonly httpStatus = 403
 
   constructor(actorId: string) {
     super(
