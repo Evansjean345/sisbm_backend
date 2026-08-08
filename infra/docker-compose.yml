@@ -1,0 +1,114 @@
+# =============================================================================
+#  SISBM CORE — pile complète
+#  Développement : docker compose -f docker/docker-compose.yml up -d
+# =============================================================================
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: sisbm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-sisbm_core}
+      POSTGRES_USER: ${DB_USER:-sisbm_owner}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?mot de passe requis}
+      POSTGRES_INITDB_ARGS: '--data-checksums --locale=C --encoding=UTF8'
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - enable_partitionwise_join=on
+      - -c
+      - enable_partitionwise_aggregate=on
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - track_io_timing=on
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-sisbm_owner} -d ${DB_DATABASE:-sisbm_core}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sisbm_redis
+    restart: unless-stopped
+    # noeviction : Redis porte les files BullMQ. Évincer une clé sous pression
+    # mémoire ferait disparaître des notifications et des commandes en attente.
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runtime
+    container_name: sisbm_api
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      RUN_MIGRATIONS: '${RUN_MIGRATIONS:-false}'
+    ports:
+      - '${PORT:-3333}:3333'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Traitements asynchrones : dépilage de l'outbox, notifications, webhooks,
+  # clôture des trajets, expiration des commandes.
+  # Processus SÉPARÉ de l'API : un pic de rapports ne doit pas dégrader la
+  # latence de l'ingestion GPS.
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runtime
+    container_name: sisbm_worker
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+    command: ['node', 'ace', 'sisbm:worker']
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ['full']
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,57 @@
+import { defineConfig } from '@adonisjs/auth'
+//import { sessionGuard, sessionUserProvider } from '@adonisjs/auth/session'
+import { tokensGuard, tokensUserProvider } from '@adonisjs/auth/access_tokens'
+import type { InferAuthenticators, InferAuthEvents, Authenticators } from '@adonisjs/auth/types'
+
+/**
+ * Authentification par jetons opaques (access tokens).
+ *
+ * Choix assumé face au JWT : un jeton opaque est révocable immédiatement.
+ * Sur une plateforme capable de couper un moteur, pouvoir invalider une
+ * session compromise dans la seconde vaut largement le coût d'une lecture
+ * en base par requête.
+ */
+const authConfig = defineConfig({
+  /**
+   * Default guard used when no guard is explicitly specified.
+   */
+  default: 'api',
+  guards: {
+    /**
+     * Token-based guard for stateless API authentication.
+     */
+    api: tokensGuard({
+      provider: tokensUserProvider({
+        tokens: 'accessTokens',
+        model: () => import('#infrastructure/persistence/models/user_model'),
+      }),
+    }),
+
+    /**
+     * Session-based guard for browser authentication.
+     */
+    //web: sessionGuard({
+    /**
+     * Enable persistent login using remember-me tokens.
+     */
+    //useRememberMeTokens: false,
+
+    //provider: sessionUserProvider({
+    // model: () => import('#models/user'),
+    // }),
+    // }),
+  },
+})
+
+export default authConfig
+
+/**
+ * Inferring types from the configured auth
+ * guards.
+ */
+declare module '@adonisjs/auth/types' {
+  export interface Authenticators extends InferAuthenticators<typeof authConfig> {}
+}
+declare module '@adonisjs/core/types' {
+  interface EventsList extends InferAuthEvents<Authenticators> {}
+}
