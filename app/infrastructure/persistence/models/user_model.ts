@@ -48,6 +48,9 @@ export default class UserModel extends BaseModel {
   @column.dateTime({ columnName: 'last_login_at' })
   declare lastLoginAt: DateTime | null
 
+  @column({ columnName: 'last_login_ip' })
+  declare lastLoginIp: string | null
+
   @column({ columnName: 'failed_attempts' })
   declare failedAttempts: number
 
