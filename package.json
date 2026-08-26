@@ -33,7 +33,14 @@
     "db:fresh": "node ace migration:fresh --seed",
     "db:sql": "node ace sisbm:apply-sql",
     "check": "npm run arch && npm run lint && npm run typecheck && npm run test",
-    "arch": "bash scripts/check-architecture.sh"
+    "arch": "bash scripts/check-architecture.sh",
+    "docker:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d postgres redis",
+    "docker:up:all": "docker compose --env-file .env -f docker/docker-compose.yml --profile full up -d --build",
+    "docker:ps": "docker compose --env-file .env -f docker/docker-compose.yml ps",
+    "docker:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f",
+    "docker:stop": "docker compose --env-file .env -f docker/docker-compose.yml stop",
+    "docker:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
+    "docker:reset": "docker compose --env-file .env -f docker/docker-compose.yml down -v && docker compose --env-file .env -f docker/docker-compose.yml up -d postgres redis"
   },
   "dependencies": {
     "@adonisjs/auth": "^10.1.0",

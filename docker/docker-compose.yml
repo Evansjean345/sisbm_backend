@@ -1,6 +1,15 @@
 # =============================================================================
 #  SISBM CORE — pile complète
-#  Développement : docker compose -f docker/docker-compose.yml up -d
+#
+#  ⚠ LANCER DEPUIS LA RACINE DU PROJET, avec --env-file :
+#
+#      docker compose --env-file .env -f docker/docker-compose.yml up -d postgres redis
+#
+#  Compose déduit son « répertoire de projet » du dossier contenant ce fichier
+#  (donc docker/) et y cherche un .env. Sans --env-file, le .env de la racine
+#  n'est jamais lu et l'interpolation échoue.
+#
+#  Plus simple : utiliser les scripts npm — npm run docker:up
 # =============================================================================
 
 services:
@@ -11,7 +20,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_DATABASE:-sisbm_core}
       POSTGRES_USER: ${DB_USER:-sisbm_owner}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?mot de passe requis}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD introuvable. Lance depuis la racine avec --env-file .env (ou npm run docker:up)}
       POSTGRES_INITDB_ARGS: '--data-checksums --locale=C --encoding=UTF8'
       TZ: UTC
       PGTZ: UTC
