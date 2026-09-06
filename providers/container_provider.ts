@@ -8,6 +8,8 @@ import { LucidVehicleStateReader } from '#infrastructure/persistence/readers/veh
 import { RequestImmobilization } from '#application/security/use_cases/request_immobilization'
 import { ValidateImmobilization } from '#application/security/use_cases/validate_immobilization'
 import sisbmConfig from '#config/sisbm'
+import { HttpFlespiCommandGateway } from '#infrastructure/gateways/flespi/flespi_command_gateway'
+import { FlespiDeviceGateway } from '#infrastructure/gateways/flespi/flespi_device_gateway'
 
 /**
  * =========================================================================
@@ -34,6 +36,18 @@ export default class ContainerProvider {
 
   register() {
     const immo = sisbmConfig.immobilization
+    const flespi = {
+      token: sisbmConfig.flespi.token,
+      baseUrl: sisbmConfig.flespi.baseUrl,
+      timeoutMs: sisbmConfig.flespi.timeoutMs,
+    }
+
+    // ------------------------------------------------------------- Flespi
+    this.app.container.singleton(
+      HttpFlespiCommandGateway,
+      () => new HttpFlespiCommandGateway(flespi)
+    )
+    this.app.container.singleton(FlespiDeviceGateway, () => new FlespiDeviceGateway(flespi))
 
     // ------------------------------------------------------------- sécurité
     this.app.container.singleton(RequestImmobilization, () => {

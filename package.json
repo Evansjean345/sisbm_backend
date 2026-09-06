@@ -83,5 +83,9 @@
       "./app/application/**/*.ts"
     ]
   },
-  "prettier": "@adonisjs/prettier-config"
+  "prettier": "@adonisjs/prettier-config",
+  "allowScripts": {
+    "@swc/core@1.16.1": true,
+    "msgpackr-extract@3.0.4": true
+  }
 }

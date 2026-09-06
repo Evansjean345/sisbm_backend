@@ -7,44 +7,2667 @@
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
+export class AlertSchema extends BaseModel {
+  static $columns = [
+    'acknowledgedAt',
+    'acknowledgedBy',
+    'alertType',
+    'context',
+    'createdAt',
+    'eventId',
+    'id',
+    'incidentId',
+    'lastOccurredAt',
+    'location',
+    'message',
+    'occurrences',
+    'organizationId',
+    'policyId',
+    'resolutionNote',
+    'resolvedAt',
+    'resolvedBy',
+    'severity',
+    'status',
+    'title',
+    'triggeredAt',
+    'updatedAt',
+    'vehicleId',
+  ] as const
+  $columns = AlertSchema.$columns
+  @column.dateTime()
+  declare acknowledgedAt: DateTime | null
+  @column()
+  declare acknowledgedBy: string | null
+  @column()
+  declare alertType: string
+  @column()
+  declare context: any
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare eventId: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare incidentId: string | null
+  @column.dateTime()
+  declare lastOccurredAt: DateTime | null
+  @column()
+  declare location: any | null
+  @column()
+  declare message: string | null
+  @column()
+  declare occurrences: number
+  @column()
+  declare organizationId: string
+  @column()
+  declare policyId: string | null
+  @column()
+  declare resolutionNote: string | null
+  @column.dateTime()
+  declare resolvedAt: DateTime | null
+  @column()
+  declare resolvedBy: string | null
+  @column()
+  declare severity: string
+  @column()
+  declare status: string
+  @column()
+  declare title: string
+  @column.dateTime()
+  declare triggeredAt: DateTime
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare vehicleId: string | null
+}
+
+export class ApiClientSchema extends BaseModel {
+  static $columns = [
+    'allowedIps',
+    'createdAt',
+    'createdBy',
+    'description',
+    'expiresAt',
+    'id',
+    'isActive',
+    'keyHash',
+    'keyPrefix',
+    'lastUsedAt',
+    'name',
+    'organizationId',
+    'rateLimitPerMinute',
+    'revokedAt',
+    'scopes',
+    'updatedAt',
+  ] as const
+  $columns = ApiClientSchema.$columns
+  @column()
+  declare allowedIps: any | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdBy: string | null
+  @column()
+  declare description: string | null
+  @column.dateTime()
+  declare expiresAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare keyHash: string
+  @column()
+  declare keyPrefix: string
+  @column.dateTime()
+  declare lastUsedAt: DateTime | null
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare rateLimitPerMinute: number
+  @column.dateTime()
+  declare revokedAt: DateTime | null
+  @column()
+  declare scopes: any
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class AuditLogSchema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogSchema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
+export class AuditLogs202607Schema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogs202607Schema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
+export class AuditLogs202608Schema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogs202608Schema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
+export class AuditLogs202609Schema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogs202609Schema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
+export class AuditLogs202610Schema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogs202610Schema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
+export class AuditLogs202611Schema extends BaseModel {
+  static $columns = [
+    'action',
+    'actorId',
+    'actorIp',
+    'actorLabel',
+    'actorType',
+    'afterState',
+    'beforeState',
+    'id',
+    'metadata',
+    'occurredAt',
+    'organizationId',
+    'resourceId',
+    'resourceType',
+    'userAgent',
+  ] as const
+  $columns = AuditLogs202611Schema.$columns
+  @column()
+  declare action: string
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorLabel: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare afterState: any | null
+  @column()
+  declare beforeState: any | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare metadata: any
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare resourceId: string | null
+  @column()
+  declare resourceType: string
+  @column()
+  declare userAgent: string | null
+}
+
 export class AuthAccessTokenSchema extends BaseModel {
-  static $columns = ['abilities', 'createdAt', 'expiresAt', 'hash', 'id', 'lastUsedAt', 'name', 'tokenableId', 'type', 'updatedAt'] as const
+  static $columns = [
+    'abilities',
+    'createdAt',
+    'expiresAt',
+    'hash',
+    'id',
+    'lastUsedAt',
+    'name',
+    'tokenableId',
+    'type',
+    'updatedAt',
+  ] as const
   $columns = AuthAccessTokenSchema.$columns
   @column()
   declare abilities: string
   @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime | null
+  declare createdAt: DateTime
   @column.dateTime()
   declare expiresAt: DateTime | null
   @column()
   declare hash: string
   @column({ isPrimary: true })
-  declare id: number
+  declare id: bigint | number
   @column.dateTime()
   declare lastUsedAt: DateTime | null
   @column()
   declare name: string | null
   @column()
-  declare tokenableId: number
+  declare tokenableId: string
   @column()
   declare type: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime | null
+  declare updatedAt: DateTime
 }
 
-export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
-  $columns = UserSchema.$columns
+export class DeviceAssignmentSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'deviceId',
+    'id',
+    'installNotes',
+    'installedBy',
+    'period',
+    'removedBy',
+    'updatedAt',
+    'vehicleId',
+  ] as const
+  $columns = DeviceAssignmentSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
   @column()
-  declare email: string
-  @column()
-  declare fullName: string | null
+  declare deviceId: string
   @column({ isPrimary: true })
-  declare id: number
-  @column({ serializeAs: null })
-  declare password: string
+  declare id: string
+  @column()
+  declare installNotes: string | null
+  @column()
+  declare installedBy: string | null
+  @column()
+  declare period: any
+  @column()
+  declare removedBy: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime | null
+  declare updatedAt: DateTime
+  @column()
+  declare vehicleId: string
+}
+
+export class DeviceCommandLogSchema extends BaseModel {
+  static $columns = [
+    'actorId',
+    'actorIp',
+    'actorType',
+    'commandId',
+    'createdAt',
+    'id',
+    'note',
+    'payload',
+    'statusFrom',
+    'statusTo',
+  ] as const
+  $columns = DeviceCommandLogSchema.$columns
+  @column()
+  declare actorId: string | null
+  @column()
+  declare actorIp: string | null
+  @column()
+  declare actorType: string
+  @column()
+  declare commandId: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare note: string | null
+  @column()
+  declare payload: any
+  @column()
+  declare statusFrom: string | null
+  @column()
+  declare statusTo: string
+}
+
+export class DeviceCommandSchema extends BaseModel {
+  static $columns = [
+    'acknowledgedAt',
+    'alertId',
+    'attempts',
+    'commandType',
+    'createdAt',
+    'deviceId',
+    'errorMessage',
+    'expiresAt',
+    'failedAt',
+    'id',
+    'ignitionAtRequest',
+    'incidentId',
+    'locationAtRequest',
+    'organizationId',
+    'origin',
+    'policyId',
+    'provider',
+    'providerCommandId',
+    'queuedAt',
+    'reason',
+    'rejectionReason',
+    'requestedAt',
+    'requestedBy',
+    'requiresValidation',
+    'safetyContext',
+    'safetySpeedLimitKph',
+    'sentAt',
+    'speedAtRequestKph',
+    'status',
+    'updatedAt',
+    'validatedAt',
+    'validatedBy',
+    'vehicleId',
+  ] as const
+  $columns = DeviceCommandSchema.$columns
+  @column.dateTime()
+  declare acknowledgedAt: DateTime | null
+  @column()
+  declare alertId: string | null
+  @column()
+  declare attempts: number
+  @column()
+  declare commandType: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare deviceId: string
+  @column()
+  declare errorMessage: string | null
+  @column.dateTime()
+  declare expiresAt: DateTime
+  @column.dateTime()
+  declare failedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare ignitionAtRequest: boolean | null
+  @column()
+  declare incidentId: string | null
+  @column()
+  declare locationAtRequest: any | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare origin: string
+  @column()
+  declare policyId: string | null
+  @column()
+  declare provider: string
+  @column()
+  declare providerCommandId: string | null
+  @column.dateTime()
+  declare queuedAt: DateTime | null
+  @column()
+  declare reason: string
+  @column()
+  declare rejectionReason: string | null
+  @column.dateTime()
+  declare requestedAt: DateTime
+  @column()
+  declare requestedBy: string | null
+  @column()
+  declare requiresValidation: boolean
+  @column()
+  declare safetyContext: any
+  @column()
+  declare safetySpeedLimitKph: string
+  @column.dateTime()
+  declare sentAt: DateTime | null
+  @column()
+  declare speedAtRequestKph: string | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column.dateTime()
+  declare validatedAt: DateTime | null
+  @column()
+  declare validatedBy: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class DeviceSchema extends BaseModel {
+  static $columns = [
+    'commissionedOn',
+    'createdAt',
+    'deletedAt',
+    'firmwareVersion',
+    'flespiChannelId',
+    'flespiDeviceId',
+    'flespiIdent',
+    'hasRelay',
+    'id',
+    'imei',
+    'lastBatteryPct',
+    'lastGsmSignal',
+    'lastSeenAt',
+    'manufacturer',
+    'model',
+    'notes',
+    'organizationId',
+    'protocol',
+    'serialNumber',
+    'simIccid',
+    'simMsisdn',
+    'simOperator',
+    'status',
+    'updatedAt',
+  ] as const
+  $columns = DeviceSchema.$columns
+  @column.date()
+  declare commissionedOn: DateTime | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare firmwareVersion: string | null
+  @column()
+  declare flespiChannelId: bigint | number | null
+  @column()
+  declare flespiDeviceId: bigint | number | null
+  @column()
+  declare flespiIdent: string | null
+  @column()
+  declare hasRelay: boolean
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare imei: string
+  @column()
+  declare lastBatteryPct: string | null
+  @column()
+  declare lastGsmSignal: number | null
+  @column.dateTime()
+  declare lastSeenAt: DateTime | null
+  @column()
+  declare manufacturer: string
+  @column()
+  declare model: string
+  @column()
+  declare notes: string | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare protocol: string | null
+  @column()
+  declare serialNumber: string | null
+  @column()
+  declare simIccid: string | null
+  @column()
+  declare simMsisdn: string | null
+  @column()
+  declare simOperator: string | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class EventSchema extends BaseModel {
+  static $columns = [
+    'actualValue',
+    'createdAt',
+    'dedupKey',
+    'deviceId',
+    'eventType',
+    'geofenceId',
+    'id',
+    'location',
+    'occurredAt',
+    'organizationId',
+    'payload',
+    'positionId',
+    'receivedAt',
+    'severity',
+    'speedKph',
+    'thresholdValue',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = EventSchema.$columns
+  @column()
+  declare actualValue: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare dedupKey: string
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare eventType: string
+  @column()
+  declare geofenceId: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare location: any | null
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column()
+  declare organizationId: string
+  @column()
+  declare payload: any
+  @column()
+  declare positionId: bigint | number | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare severity: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare thresholdValue: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class GeofenceAssignmentSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'geofenceId',
+    'id',
+    'isActive',
+    'notifyOnEnter',
+    'notifyOnExit',
+    'severity',
+    'updatedAt',
+    'usageScheduleId',
+    'vehicleGroupId',
+    'vehicleId',
+  ] as const
+  $columns = GeofenceAssignmentSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare geofenceId: string
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare notifyOnEnter: boolean
+  @column()
+  declare notifyOnExit: boolean
+  @column()
+  declare severity: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare usageScheduleId: string | null
+  @column()
+  declare vehicleGroupId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class GeofenceStateSchema extends BaseModel {
+  static $columns = ['geofenceId', 'isInside', 'lastEvaluatedAt', 'since', 'vehicleId'] as const
+  $columns = GeofenceStateSchema.$columns
+  @column()
+  declare geofenceId: string
+  @column()
+  declare isInside: boolean
+  @column.dateTime()
+  declare lastEvaluatedAt: DateTime
+  @column.dateTime()
+  declare since: DateTime
+  @column({ isPrimary: true })
+  declare vehicleId: string
+}
+
+export class GeofenceSchema extends BaseModel {
+  static $columns = [
+    'areaM2',
+    'center',
+    'color',
+    'createdAt',
+    'createdBy',
+    'deletedAt',
+    'description',
+    'geom',
+    'id',
+    'isActive',
+    'kind',
+    'name',
+    'organizationId',
+    'radiusM',
+    'shapeType',
+    'updatedAt',
+  ] as const
+  $columns = GeofenceSchema.$columns
+  @column()
+  declare areaM2: string | null
+  @column()
+  declare center: any | null
+  @column()
+  declare color: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdBy: string | null
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare description: string | null
+  @column()
+  declare geom: any
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare kind: string
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare radiusM: string | null
+  @column()
+  declare shapeType: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class IncidentAlertSchema extends BaseModel {
+  static $columns = ['alertId', 'incidentId', 'linkedAt', 'linkedBy'] as const
+  $columns = IncidentAlertSchema.$columns
+  @column()
+  declare alertId: string
+  @column({ isPrimary: true })
+  declare incidentId: string
+  @column.dateTime()
+  declare linkedAt: DateTime
+  @column()
+  declare linkedBy: string | null
+}
+
+export class IncidentTimelineSchema extends BaseModel {
+  static $columns = [
+    'authorId',
+    'content',
+    'createdAt',
+    'id',
+    'incidentId',
+    'kind',
+    'metadata',
+  ] as const
+  $columns = IncidentTimelineSchema.$columns
+  @column()
+  declare authorId: string | null
+  @column()
+  declare content: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare incidentId: string
+  @column()
+  declare kind: string
+  @column()
+  declare metadata: any
+}
+
+export class IncidentSchema extends BaseModel {
+  static $columns = [
+    'acknowledgedAt',
+    'assignedTo',
+    'category',
+    'closedAt',
+    'createdAt',
+    'description',
+    'id',
+    'location',
+    'occurredAt',
+    'openedAt',
+    'openedBy',
+    'organizationId',
+    'reference',
+    'resolution',
+    'resolvedAt',
+    'resolvedBy',
+    'severity',
+    'status',
+    'title',
+    'updatedAt',
+    'vehicleId',
+  ] as const
+  $columns = IncidentSchema.$columns
+  @column.dateTime()
+  declare acknowledgedAt: DateTime | null
+  @column()
+  declare assignedTo: string | null
+  @column()
+  declare category: string
+  @column.dateTime()
+  declare closedAt: DateTime | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare location: any | null
+  @column.dateTime()
+  declare occurredAt: DateTime
+  @column.dateTime()
+  declare openedAt: DateTime
+  @column()
+  declare openedBy: string | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare reference: string
+  @column()
+  declare resolution: string | null
+  @column.dateTime()
+  declare resolvedAt: DateTime | null
+  @column()
+  declare resolvedBy: string | null
+  @column()
+  declare severity: string
+  @column()
+  declare status: string
+  @column()
+  declare title: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare vehicleId: string | null
+}
+
+export class IngestMessageSchema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessageSchema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class IngestMessages202607Schema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessages202607Schema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class IngestMessages202608Schema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessages202608Schema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class IngestMessages202609Schema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessages202609Schema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class IngestMessages202610Schema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessages202610Schema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class IngestMessages202611Schema extends BaseModel {
+  static $columns = [
+    'deviceId',
+    'deviceIdent',
+    'errorMessage',
+    'externalId',
+    'id',
+    'payload',
+    'processedAt',
+    'receivedAt',
+    'source',
+    'status',
+  ] as const
+  $columns = IngestMessages202611Schema.$columns
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare deviceIdent: string | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare externalId: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare processedAt: DateTime | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column()
+  declare source: string
+  @column()
+  declare status: string
+}
+
+export class NotificationTemplateSchema extends BaseModel {
+  static $columns = [
+    'body',
+    'channel',
+    'code',
+    'createdAt',
+    'id',
+    'isActive',
+    'locale',
+    'organizationId',
+    'subject',
+    'updatedAt',
+  ] as const
+  $columns = NotificationTemplateSchema.$columns
+  @column()
+  declare body: string
+  @column()
+  declare channel: string
+  @column()
+  declare code: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare locale: string
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare subject: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class NotificationSchema extends BaseModel {
+  static $columns = [
+    'alertId',
+    'attempts',
+    'body',
+    'channel',
+    'costAmount',
+    'currency',
+    'dedupKey',
+    'deliveredAt',
+    'errorMessage',
+    'failedAt',
+    'id',
+    'incidentId',
+    'nextRetryAt',
+    'organizationId',
+    'payload',
+    'provider',
+    'providerMessageId',
+    'queuedAt',
+    'recipientAddress',
+    'recipientUserId',
+    'segments',
+    'sentAt',
+    'status',
+    'subject',
+    'templateCode',
+  ] as const
+  $columns = NotificationSchema.$columns
+  @column()
+  declare alertId: string | null
+  @column()
+  declare attempts: number
+  @column()
+  declare body: string
+  @column()
+  declare channel: string
+  @column()
+  declare costAmount: string | null
+  @column()
+  declare currency: string | null
+  @column()
+  declare dedupKey: string | null
+  @column.dateTime()
+  declare deliveredAt: DateTime | null
+  @column()
+  declare errorMessage: string | null
+  @column.dateTime()
+  declare failedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare incidentId: string | null
+  @column.dateTime()
+  declare nextRetryAt: DateTime | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare payload: any
+  @column()
+  declare provider: string | null
+  @column()
+  declare providerMessageId: string | null
+  @column.dateTime()
+  declare queuedAt: DateTime
+  @column()
+  declare recipientAddress: string
+  @column()
+  declare recipientUserId: string | null
+  @column()
+  declare segments: number
+  @column.dateTime()
+  declare sentAt: DateTime | null
+  @column()
+  declare status: string
+  @column()
+  declare subject: string | null
+  @column()
+  declare templateCode: string | null
+}
+
+export class OrganizationSchema extends BaseModel {
+  static $columns = [
+    'code',
+    'contactEmail',
+    'contactPhone',
+    'countryCode',
+    'createdAt',
+    'currency',
+    'deletedAt',
+    'id',
+    'isActive',
+    'name',
+    'settings',
+    'timezone',
+    'updatedAt',
+  ] as const
+  $columns = OrganizationSchema.$columns
+  @column()
+  declare code: string
+  @column()
+  declare contactEmail: any | null
+  @column()
+  declare contactPhone: string | null
+  @column()
+  declare countryCode: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare currency: string
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare name: string
+  @column()
+  declare settings: any
+  @column()
+  declare timezone: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class OutboxMessageSchema extends BaseModel {
+  static $columns = [
+    'aggregateId',
+    'aggregateType',
+    'attempts',
+    'availableAt',
+    'createdAt',
+    'id',
+    'lastError',
+    'lockedAt',
+    'lockedBy',
+    'payload',
+    'publishedAt',
+    'status',
+    'topic',
+  ] as const
+  $columns = OutboxMessageSchema.$columns
+  @column()
+  declare aggregateId: string | null
+  @column()
+  declare aggregateType: string
+  @column()
+  declare attempts: number
+  @column.dateTime()
+  declare availableAt: DateTime
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare lastError: string | null
+  @column.dateTime()
+  declare lockedAt: DateTime | null
+  @column()
+  declare lockedBy: string | null
+  @column()
+  declare payload: any
+  @column.dateTime()
+  declare publishedAt: DateTime | null
+  @column()
+  declare status: string
+  @column()
+  declare topic: string
+}
+
+export class PolicySchema extends BaseModel {
+  static $columns = [
+    'conditions',
+    'cooldownSeconds',
+    'createdAt',
+    'createdBy',
+    'deletedAt',
+    'description',
+    'id',
+    'isActive',
+    'name',
+    'organizationId',
+    'priority',
+    'requiresHumanValidation',
+    'severity',
+    'triggerType',
+    'updatedAt',
+    'usageScheduleId',
+    'version',
+  ] as const
+  $columns = PolicySchema.$columns
+  @column()
+  declare conditions: any
+  @column()
+  declare cooldownSeconds: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdBy: string | null
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare priority: number
+  @column()
+  declare requiresHumanValidation: boolean
+  @column()
+  declare severity: string
+  @column()
+  declare triggerType: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare usageScheduleId: string | null
+  @column()
+  declare version: number
+}
+
+export class PolicyActionSchema extends BaseModel {
+  static $columns = [
+    'actionType',
+    'config',
+    'createdAt',
+    'id',
+    'isActive',
+    'orderIndex',
+    'policyId',
+    'updatedAt',
+  ] as const
+  $columns = PolicyActionSchema.$columns
+  @column()
+  declare actionType: string
+  @column()
+  declare config: any
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare orderIndex: number
+  @column()
+  declare policyId: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class PolicyExecutionSchema extends BaseModel {
+  static $columns = [
+    'actionsResult',
+    'errorMessage',
+    'eventId',
+    'finishedAt',
+    'id',
+    'policyId',
+    'policyVersion',
+    'startedAt',
+    'status',
+    'vehicleId',
+  ] as const
+  $columns = PolicyExecutionSchema.$columns
+  @column()
+  declare actionsResult: any
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare eventId: string | null
+  @column.dateTime()
+  declare finishedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare policyId: string
+  @column()
+  declare policyVersion: number
+  @column.dateTime()
+  declare startedAt: DateTime
+  @column()
+  declare status: string
+  @column()
+  declare vehicleId: string | null
+}
+
+export class PolicyTargetSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'geofenceId',
+    'id',
+    'policyId',
+    'scope',
+    'vehicleGroupId',
+    'vehicleId',
+  ] as const
+  $columns = PolicyTargetSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare geofenceId: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare policyId: string
+  @column()
+  declare scope: string
+  @column()
+  declare vehicleGroupId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class PositionSchema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = PositionSchema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class Positions202607Schema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = Positions202607Schema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class Positions202608Schema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = Positions202608Schema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class Positions202609Schema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = Positions202609Schema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class Positions202610Schema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = Positions202610Schema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class Positions202611Schema extends BaseModel {
+  static $columns = [
+    'altitudeM',
+    'batteryPct',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'hdop',
+    'headingDeg',
+    'id',
+    'ignition',
+    'invalidReason',
+    'isBacklog',
+    'isValid',
+    'location',
+    'movement',
+    'organizationId',
+    'raw',
+    'receivedAt',
+    'recordedAt',
+    'satellites',
+    'source',
+    'speedKph',
+    'tripId',
+    'vehicleId',
+  ] as const
+  $columns = Positions202611Schema.$columns
+  @column()
+  declare altitudeM: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare deviceId: string
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare hdop: string | null
+  @column()
+  declare headingDeg: string | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare invalidReason: string | null
+  @column()
+  declare isBacklog: boolean
+  @column()
+  declare isValid: boolean
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare raw: any | null
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare satellites: number | null
+  @column()
+  declare source: string
+  @column()
+  declare speedKph: string | null
+  @column()
+  declare tripId: string | null
+  @column()
+  declare vehicleId: string | null
+}
+
+export class ReportJobSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'errorMessage',
+    'expiresAt',
+    'filePath',
+    'fileSizeBytes',
+    'finishedAt',
+    'format',
+    'id',
+    'organizationId',
+    'parameters',
+    'reportType',
+    'requestedBy',
+    'rowsCount',
+    'startedAt',
+    'status',
+  ] as const
+  $columns = ReportJobSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare errorMessage: string | null
+  @column.dateTime()
+  declare expiresAt: DateTime
+  @column()
+  declare filePath: string | null
+  @column()
+  declare fileSizeBytes: bigint | number | null
+  @column.dateTime()
+  declare finishedAt: DateTime | null
+  @column()
+  declare format: string
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare parameters: any
+  @column()
+  declare reportType: string
+  @column()
+  declare requestedBy: string | null
+  @column()
+  declare rowsCount: number | null
+  @column.dateTime()
+  declare startedAt: DateTime | null
+  @column()
+  declare status: string
+}
+
+export class RoleSchema extends BaseModel {
+  static $columns = [
+    'code',
+    'createdAt',
+    'description',
+    'id',
+    'isSystem',
+    'name',
+    'organizationId',
+    'permissions',
+    'updatedAt',
+  ] as const
+  $columns = RoleSchema.$columns
+  @column()
+  declare code: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isSystem: boolean
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string | null
+  @column()
+  declare permissions: any
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class ScheduleWindowSchema extends BaseModel {
+  static $columns = ['dayOfWeek', 'endTime', 'id', 'startTime', 'usageScheduleId'] as const
+  $columns = ScheduleWindowSchema.$columns
+  @column()
+  declare dayOfWeek: number
+  @column()
+  declare endTime: string
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare startTime: string
+  @column()
+  declare usageScheduleId: string
+}
+
+export class SmsAccountSchema extends BaseModel {
+  static $columns = [
+    'balanceCredits',
+    'createdAt',
+    'currency',
+    'id',
+    'isActive',
+    'label',
+    'lowBalanceThreshold',
+    'organizationId',
+    'provider',
+    'unitPriceAmount',
+    'updatedAt',
+  ] as const
+  $columns = SmsAccountSchema.$columns
+  @column()
+  declare balanceCredits: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare currency: string
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare label: string | null
+  @column()
+  declare lowBalanceThreshold: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare provider: string
+  @column()
+  declare unitPriceAmount: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class SmsTransactionSchema extends BaseModel {
+  static $columns = [
+    'balanceAfter',
+    'createdAt',
+    'createdBy',
+    'currency',
+    'id',
+    'note',
+    'notificationId',
+    'organizationId',
+    'quantity',
+    'reference',
+    'smsAccountId',
+    'totalAmount',
+    'transactionType',
+    'unitPriceAmount',
+  ] as const
+  $columns = SmsTransactionSchema.$columns
+  @column()
+  declare balanceAfter: string
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdBy: string | null
+  @column()
+  declare currency: string
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare note: string | null
+  @column()
+  declare notificationId: string | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare quantity: string
+  @column()
+  declare reference: string | null
+  @column()
+  declare smsAccountId: string
+  @column()
+  declare totalAmount: string
+  @column()
+  declare transactionType: string
+  @column()
+  declare unitPriceAmount: string
+}
+
+export class SpatialRefSySchema extends BaseModel {
+  static $columns = ['authName', 'authSrid', 'proj4Text', 'srid', 'srtext'] as const
+  $columns = SpatialRefSySchema.$columns
+  @column()
+  declare authName: string | null
+  @column()
+  declare authSrid: number | null
+  @column()
+  declare proj4Text: string | null
+  @column({ isPrimary: true })
+  declare srid: number
+  @column()
+  declare srtext: string | null
+}
+
+export class TripSchema extends BaseModel {
+  static $columns = [
+    'avgSpeedKph',
+    'closeReason',
+    'createdAt',
+    'deviceId',
+    'distanceM',
+    'durationS',
+    'endAddress',
+    'endLocation',
+    'endedAt',
+    'id',
+    'idleDurationS',
+    'maxSpeedKph',
+    'organizationId',
+    'path',
+    'positionsCount',
+    'startAddress',
+    'startLocation',
+    'startedAt',
+    'status',
+    'updatedAt',
+    'vehicleId',
+  ] as const
+  $columns = TripSchema.$columns
+  @column()
+  declare avgSpeedKph: string | null
+  @column()
+  declare closeReason: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare distanceM: string
+  @column()
+  declare durationS: number | null
+  @column()
+  declare endAddress: string | null
+  @column()
+  declare endLocation: any | null
+  @column.dateTime()
+  declare endedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare idleDurationS: number
+  @column()
+  declare maxSpeedKph: string | null
+  @column()
+  declare organizationId: string
+  @column()
+  declare path: any | null
+  @column()
+  declare positionsCount: number
+  @column()
+  declare startAddress: string | null
+  @column()
+  declare startLocation: any | null
+  @column.dateTime()
+  declare startedAt: DateTime
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare vehicleId: string
+}
+
+export class UsageScheduleSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'deletedAt',
+    'description',
+    'id',
+    'isActive',
+    'name',
+    'organizationId',
+    'timezone',
+    'updatedAt',
+  ] as const
+  $columns = UsageScheduleSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare timezone: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class UserNotificationPreferenceSchema extends BaseModel {
+  static $columns = [
+    'channel',
+    'isEnabled',
+    'minSeverity',
+    'quietFrom',
+    'quietTo',
+    'updatedAt',
+    'userId',
+  ] as const
+  $columns = UserNotificationPreferenceSchema.$columns
+  @column()
+  declare channel: string
+  @column()
+  declare isEnabled: boolean
+  @column()
+  declare minSeverity: string
+  @column()
+  declare quietFrom: string | null
+  @column()
+  declare quietTo: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column({ isPrimary: true })
+  declare userId: string
+}
+
+export class UserSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'deletedAt',
+    'email',
+    'failedAttempts',
+    'fullName',
+    'id',
+    'lastLoginAt',
+    'lastLoginIp',
+    'locale',
+    'lockedUntil',
+    'organizationId',
+    'passwordChangedAt',
+    'passwordHash',
+    'phone',
+    'roleId',
+    'status',
+    'timezone',
+    'updatedAt',
+  ] as const
+  $columns = UserSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare email: any
+  @column()
+  declare failedAttempts: number
+  @column()
+  declare fullName: string
+  @column({ isPrimary: true })
+  declare id: string
+  @column.dateTime()
+  declare lastLoginAt: DateTime | null
+  @column()
+  declare lastLoginIp: string | null
+  @column()
+  declare locale: string
+  @column.dateTime()
+  declare lockedUntil: DateTime | null
+  @column()
+  declare organizationId: string
+  @column.dateTime()
+  declare passwordChangedAt: DateTime | null
+  @column()
+  declare passwordHash: string
+  @column()
+  declare phone: string | null
+  @column()
+  declare roleId: string
+  @column()
+  declare status: string
+  @column()
+  declare timezone: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class VehicleGroupMemberSchema extends BaseModel {
+  static $columns = ['addedAt', 'vehicleGroupId', 'vehicleId'] as const
+  $columns = VehicleGroupMemberSchema.$columns
+  @column.dateTime()
+  declare addedAt: DateTime
+  @column({ isPrimary: true })
+  declare vehicleGroupId: string
+  @column()
+  declare vehicleId: string
+}
+
+export class VehicleGroupSchema extends BaseModel {
+  static $columns = [
+    'color',
+    'createdAt',
+    'deletedAt',
+    'description',
+    'id',
+    'name',
+    'organizationId',
+    'updatedAt',
+  ] as const
+  $columns = VehicleGroupSchema.$columns
+  @column()
+  declare color: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
+export class VehicleLastPositionSchema extends BaseModel {
+  static $columns = [
+    'address',
+    'batteryPct',
+    'connectionState',
+    'deviceId',
+    'externalVoltageV',
+    'gsmSignal',
+    'headingDeg',
+    'ignition',
+    'location',
+    'movement',
+    'organizationId',
+    'receivedAt',
+    'recordedAt',
+    'speedKph',
+    'updatedAt',
+    'vehicleId',
+  ] as const
+  $columns = VehicleLastPositionSchema.$columns
+  @column()
+  declare address: string | null
+  @column()
+  declare batteryPct: string | null
+  @column()
+  declare connectionState: string
+  @column()
+  declare deviceId: string | null
+  @column()
+  declare externalVoltageV: string | null
+  @column()
+  declare gsmSignal: number | null
+  @column()
+  declare headingDeg: string | null
+  @column()
+  declare ignition: boolean | null
+  @column()
+  declare location: any
+  @column()
+  declare movement: boolean | null
+  @column()
+  declare organizationId: string
+  @column.dateTime()
+  declare receivedAt: DateTime
+  @column.dateTime()
+  declare recordedAt: DateTime
+  @column()
+  declare speedKph: string | null
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column({ isPrimary: true })
+  declare vehicleId: string
+}
+
+export class VehicleScheduleSchema extends BaseModel {
+  static $columns = ['createdAt', 'mode', 'usageScheduleId', 'vehicleId'] as const
+  $columns = VehicleScheduleSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare mode: string
+  @column()
+  declare usageScheduleId: string
+  @column({ isPrimary: true })
+  declare vehicleId: string
+}
+
+export class VehicleSchema extends BaseModel {
+  static $columns = [
+    'brand',
+    'color',
+    'createdAt',
+    'deletedAt',
+    'id',
+    'immobilizationEnabled',
+    'label',
+    'metadata',
+    'model',
+    'notes',
+    'odometerKm',
+    'organizationId',
+    'registration',
+    'speedLimitKph',
+    'status',
+    'updatedAt',
+    'vehicleType',
+    'vin',
+    'year',
+  ] as const
+  $columns = VehicleSchema.$columns
+  @column()
+  declare brand: string | null
+  @column()
+  declare color: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare immobilizationEnabled: boolean
+  @column()
+  declare label: string | null
+  @column()
+  declare metadata: any
+  @column()
+  declare model: string | null
+  @column()
+  declare notes: string | null
+  @column()
+  declare odometerKm: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare registration: any
+  @column()
+  declare speedLimitKph: string | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare vehicleType: string
+  @column()
+  declare vin: string | null
+  @column()
+  declare year: number | null
+}
+
+export class WebhookDeliverySchema extends BaseModel {
+  static $columns = [
+    'attempts',
+    'createdAt',
+    'deliveredAt',
+    'errorMessage',
+    'eventId',
+    'eventType',
+    'httpStatus',
+    'id',
+    'nextRetryAt',
+    'payload',
+    'responseBody',
+    'status',
+    'webhookEndpointId',
+  ] as const
+  $columns = WebhookDeliverySchema.$columns
+  @column()
+  declare attempts: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column.dateTime()
+  declare deliveredAt: DateTime | null
+  @column()
+  declare errorMessage: string | null
+  @column()
+  declare eventId: string | null
+  @column()
+  declare eventType: string
+  @column()
+  declare httpStatus: number | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column.dateTime()
+  declare nextRetryAt: DateTime | null
+  @column()
+  declare payload: any
+  @column()
+  declare responseBody: string | null
+  @column()
+  declare status: string
+  @column()
+  declare webhookEndpointId: string
+}
+
+export class WebhookEndpointSchema extends BaseModel {
+  static $columns = [
+    'consecutiveFailures',
+    'createdAt',
+    'createdBy',
+    'deletedAt',
+    'eventTypes',
+    'id',
+    'isActive',
+    'lastFailureAt',
+    'lastSuccessAt',
+    'maxAttempts',
+    'name',
+    'organizationId',
+    'secretHash',
+    'timeoutMs',
+    'updatedAt',
+    'url',
+  ] as const
+  $columns = WebhookEndpointSchema.$columns
+  @column()
+  declare consecutiveFailures: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare createdBy: string | null
+  @column.dateTime()
+  declare deletedAt: DateTime | null
+  @column()
+  declare eventTypes: any
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare isActive: boolean
+  @column.dateTime()
+  declare lastFailureAt: DateTime | null
+  @column.dateTime()
+  declare lastSuccessAt: DateTime | null
+  @column()
+  declare maxAttempts: number
+  @column()
+  declare name: string
+  @column()
+  declare organizationId: string
+  @column()
+  declare secretHash: string
+  @column()
+  declare timeoutMs: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare url: string
 }

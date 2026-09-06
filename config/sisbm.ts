@@ -48,11 +48,35 @@ const sisbmConfig = {
   /** Passerelle télématique. */
   flespi: {
     token: env.get('FLESPI_TOKEN', ''),
+    baseUrl: env.get('FLESPI_BASE_URL', 'https://flespi.io'),
+    timeoutMs: env.get('FLESPI_TIMEOUT_MS', 10000),
+    channelId: env.get('FLESPI_CHANNEL_ID', 0),
+    deviceTypeId: env.get('FLESPI_DEVICE_TYPE_ID', 'Micodus MV730'),
     mqttHost: env.get('FLESPI_MQTT_HOST', 'mqtt.flespi.io'),
     mqttPort: env.get('FLESPI_MQTT_PORT', 8883),
     mqttTls: env.get('FLESPI_MQTT_TLS', true),
     clientId: env.get('FLESPI_MQTT_CLIENT_ID', 'sisbm-core'),
     webhookSecret: env.get('FLESPI_WEBHOOK_SECRET', ''),
+  },
+
+  /**
+   * Broker MQTT. Le TTL par message (MQTT 5) évite qu'une position périmée
+   * soit rejouée : au-delà, elle ne prouve plus rien.
+   */
+  mqtt: {
+    host: env.get('MQTT_HOST', '127.0.0.1'),
+    port: env.get('MQTT_PORT', 1883),
+    tls: env.get('MQTT_TLS', false),
+    clientId: env.get('MQTT_CLIENT_ID', 'sisbm-ingest'),
+    username: env.get('MQTT_USERNAME', ''),
+    password: env.get('MQTT_PASSWORD', ''),
+    topics: [env.get('MQTT_TOPIC_TELEMETRY', 'sisbm/telemetry/+/data')],
+    qos: 1 as const,
+    messageExpirySeconds: env.get('MQTT_MESSAGE_EXPIRY_SECONDS', 300),
+    reconnectPeriodMs: env.get('MQTT_RECONNECT_PERIOD_MS', 2000),
+    connectTimeoutMs: env.get('MQTT_CONNECT_TIMEOUT_MS', 10000),
+    /** Plafond de la file interne — contre-pression. */
+    maxInflightQueue: env.get('MQTT_MAX_INFLIGHT', 1000),
   },
 
   /** Rétention — à confirmer avec le responsable conformité (ARTCI). */

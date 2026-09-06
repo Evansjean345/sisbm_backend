@@ -17,7 +17,11 @@ import type UserModel from '#infrastructure/persistence/models/user_model'
  */
 
 type Permission =
-  'requestImmobilization' | 'validateImmobilization' | 'viewVehicles' | 'manageVehicles'
+  | 'requestImmobilization'
+  | 'validateImmobilization'
+  | 'viewVehicles'
+  | 'manageVehicles'
+  | 'manageUsers'
 
 /**
  * Demander et VALIDER une immobilisation sont deux permissions distinctes.
@@ -29,6 +33,7 @@ const PERMISSION_MAP: Record<Permission, string> = {
   validateImmobilization: 'command:validate',
   viewVehicles: 'vehicle:read',
   manageVehicles: 'vehicle:write',
+  manageUsers: 'user:write',
 }
 
 /** Cache par instance d'utilisateur, donc par requête. */

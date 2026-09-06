@@ -54,6 +54,9 @@ export default class UserModel extends BaseModel {
   @column({ columnName: 'failed_attempts' })
   declare failedAttempts: number
 
+  @column.dateTime({ columnName: 'password_changed_at' })
+  declare passwordChangedAt: DateTime | null
+
   @column.dateTime({ columnName: 'locked_until' })
   declare lockedUntil: DateTime | null
 

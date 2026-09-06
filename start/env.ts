@@ -67,6 +67,23 @@ export default await Env.create(new URL('../', import.meta.url), {
   FLESPI_MQTT_TLS: Env.schema.boolean.optional(),
   FLESPI_MQTT_CLIENT_ID: Env.schema.string.optional(),
   FLESPI_WEBHOOK_SECRET: Env.schema.string.optional(),
+  FLESPI_BASE_URL: Env.schema.string.optional(),
+  FLESPI_TIMEOUT_MS: Env.schema.number.optional(),
+  FLESPI_CHANNEL_ID: Env.schema.number.optional(),
+  FLESPI_DEVICE_TYPE_ID: Env.schema.string.optional(),
+
+  // ---------------------------------------------------------- broker mqtt
+  MQTT_HOST: Env.schema.string.optional({ format: 'host' }),
+  MQTT_PORT: Env.schema.number.optional(),
+  MQTT_TLS: Env.schema.boolean.optional(),
+  MQTT_CLIENT_ID: Env.schema.string.optional(),
+  MQTT_USERNAME: Env.schema.string.optional(),
+  MQTT_PASSWORD: Env.schema.string.optional(),
+  MQTT_TOPIC_TELEMETRY: Env.schema.string.optional(),
+  MQTT_MESSAGE_EXPIRY_SECONDS: Env.schema.number.optional(),
+  MQTT_RECONNECT_PERIOD_MS: Env.schema.number.optional(),
+  MQTT_CONNECT_TIMEOUT_MS: Env.schema.number.optional(),
+  MQTT_MAX_INFLIGHT: Env.schema.number.optional(),
 
   // ---------------------------------------------------------- notifications
   SMTP_HOST: Env.schema.string.optional(),
