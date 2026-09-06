@@ -10,6 +10,14 @@ import { ValidateImmobilization } from '#application/security/use_cases/validate
 import sisbmConfig from '#config/sisbm'
 import { HttpFlespiCommandGateway } from '#infrastructure/gateways/flespi/flespi_command_gateway'
 import { FlespiDeviceGateway } from '#infrastructure/gateways/flespi/flespi_device_gateway'
+import {
+  LucidPositionRepository,
+  LucidVehicleLastPositionRepository,
+  LucidIngestMessageRepository,
+} from '#infrastructure/persistence/repositories/telemetry_repositories'
+import { LucidTripRepository } from '#infrastructure/persistence/repositories/trip_repository'
+import { CachedDeviceResolver } from '#infrastructure/persistence/readers/device_resolver'
+import { TransmitBroadcaster } from '#infrastructure/realtime/transmit_broadcaster'
 
 /**
  * =========================================================================
@@ -48,6 +56,22 @@ export default class ContainerProvider {
       () => new HttpFlespiCommandGateway(flespi)
     )
     this.app.container.singleton(FlespiDeviceGateway, () => new FlespiDeviceGateway(flespi))
+
+    // ------------------------------------------------------------- télémétrie
+    // Le résolveur est un SINGLETON : son cache mémoire n'a d'intérêt que
+    // partagé entre toutes les trames du processus.
+    this.app.container.singleton(CachedDeviceResolver, () => new CachedDeviceResolver())
+    this.app.container.singleton(LucidPositionRepository, () => new LucidPositionRepository())
+    this.app.container.singleton(LucidTripRepository, () => new LucidTripRepository())
+    this.app.container.singleton(
+      LucidIngestMessageRepository,
+      () => new LucidIngestMessageRepository()
+    )
+    this.app.container.singleton(
+      LucidVehicleLastPositionRepository,
+      () => new LucidVehicleLastPositionRepository()
+    )
+    this.app.container.singleton(TransmitBroadcaster, () => new TransmitBroadcaster())
 
     // ------------------------------------------------------------- sécurité
     this.app.container.singleton(RequestImmobilization, () => {

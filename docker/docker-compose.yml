@@ -75,32 +75,6 @@ services:
       timeout: 5s
       retries: 5
 
-  mosquitto:
-    image: eclipse-mosquitto:2.1-alpine # image OFFICIELLE Docker
-    container_name: sisbm_mqtt
-    restart: unless-stopped
-    ports:
-      # En développement seulement. En production, ne publier que 8883 (TLS),
-      # et jamais 1883 en clair sur une interface publique.
-      - '${MQTT_PORT:-1883}:1883'
-    volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./mosquitto/acl:/mosquitto/config/acl:ro
-      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
-      - mosquitto_data:/mosquitto/data
-    healthcheck:
-      # -E : se connecte puis quitte immédiatement. Vérifie que le broker
-      # RÉPOND, pas seulement que le processus tourne.
-      test:
-        [
-          'CMD-SHELL',
-          "mosquitto_sub -h localhost -t '$$SYS/#' -E -i healthcheck -u sisbm_monitor -P $$MQTT_MONITOR_PASSWORD || exit 1",
-        ]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   api:
     build:
       context: ..

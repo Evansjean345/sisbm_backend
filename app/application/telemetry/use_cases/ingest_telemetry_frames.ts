@@ -178,7 +178,12 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
       // ---- État courant : uniquement le dernier point temps réel
       const live = lectures.filter((l) => l.isLive)
       const dernier = live.at(-1)
-      if (dernier) {
+
+      // `vehicle_last_positions` est indexée PAR VÉHICULE : un boîtier en
+      // stock, ou installé mais pas encore rattaché, n'y a pas sa place.
+      // Sans cette garde, une seule trame d'un boîtier non affecté fait
+      // échouer la transaction et donc TOUT le lot.
+      if (dernier && device.vehicleId) {
         await this.lastPositions.upsert(dernier.toPersistence(), tx)
       }
 

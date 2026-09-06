@@ -1,5 +1,6 @@
 import logger from '@adonisjs/core/services/logger'
 import type { FlespiGatewayConfig } from '#infrastructure/gateways/flespi/flespi_command_gateway'
+import { DeviceIdent } from '#domain/telemetry/value_objects'
 
 /**
  * =========================================================================
@@ -29,9 +30,17 @@ export interface FlespiMessage {
 export class FlespiDeviceGateway {
   constructor(private readonly config: FlespiGatewayConfig) {}
 
-  /** Préfixe Micodus. Idempotent : ne double jamais le zéro. */
+  /**
+   * Préfixe Micodus.
+   *
+   * Délègue à `DeviceIdent` : c'est la SEULE règle de préfixage du projet.
+   * En avoir deux — une conditionnée à la longueur ici, une inconditionnelle
+   * dans l'objet-valeur — produisait `00352…` dès que la valeur portait déjà
+   * le zéro.
+   */
   static toFlespiIdent(imei: string): string {
-    return imei.length === 15 ? `0${imei}` : imei
+    const ident = DeviceIdent.create(imei)
+    return ident.ok ? ident.value.flespiIdent : imei
   }
 
   /**

@@ -94,7 +94,12 @@ export const createDeviceValidator = vine.compile(
      * boîtiers Micodus est ajouté automatiquement dans `flespiIdent` : la base
      * ne contient que des IMEI normalisés.
      */
-    imei: vine.string().trim(),
+    /**
+     * Chiffres uniquement, SANS limite de longueur : les Micodus font 15
+     * caractères, d'autres constructeurs non. Le « 0 » de tête Flespi est
+     * retiré par `DeviceIdent`, pas ici.
+     */
+    imei: vine.string().trim().regex(/^\d+$/),
     //.regex(/^\d{15}$/),
     serialNumber: vine.string().trim().maxLength(40).optional(),
     manufacturer: vine.enum(MANUFACTURERS).optional(),
