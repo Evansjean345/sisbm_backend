@@ -44,7 +44,8 @@ export default class Ingest extends BaseCommand {
     } = await import('#infrastructure/persistence/repositories/telemetry_repositories')
     const { LucidTripRepository } =
       await import('#infrastructure/persistence/repositories/trip_repository')
-    const { DeviceResolver } = await import('#infrastructure/persistence/readers/device_resolver')
+    const { CachedDeviceResolver } =
+      await import('#infrastructure/persistence/readers/device_resolver')
     const { TransmitBroadcaster } = await import('#infrastructure/realtime/transmit_broadcaster')
     const { SystemClock } = await import('#infrastructure/services/clock')
     const { UuidGenerator } = await import('#infrastructure/services/id_generator')
@@ -59,7 +60,7 @@ export default class Ingest extends BaseCommand {
       new LucidPositionRepository(),
       new LucidVehicleLastPositionRepository(),
       new LucidTripRepository(),
-      new DeviceResolver(),
+      new CachedDeviceResolver(),
       new TransmitBroadcaster(),
       new SystemClock(),
       new UuidGenerator(),
