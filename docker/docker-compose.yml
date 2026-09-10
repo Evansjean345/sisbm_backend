@@ -118,6 +118,37 @@ services:
         condition: service_healthy
     profiles: ['full']
 
+  # ---------------------------------------------------------------- broker MQTT
+  # Image OFFICIELLE Docker. MQTT 5 requis pour le TTL par message.
+  mosquitto:
+    image: eclipse-mosquitto:2.1-alpine
+    container_name: sisbm_mqtt
+    restart: unless-stopped
+    ports:
+      # Développement seulement. En production, n'exposer que 8883 (TLS).
+      - '${MQTT_PORT:-1883}:1883'
+    volumes:
+      # `:ro` — le broker ne doit jamais réécrire sa propre configuration
+      # ni son fichier de mots de passe.
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      # -E : se connecte puis quitte aussitôt. Vérifie que le broker RÉPOND,
+      # pas seulement que le processus tourne.
+      test:
+        [
+          'CMD-SHELL',
+          "mosquitto_sub -h localhost -t '$$SYS/#' -E -i healthcheck -u sisbm_monitor -P $$MQTT_MONITOR_PASSWORD || exit 1",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      MQTT_MONITOR_PASSWORD: ${MQTT_MONITOR_PASSWORD:?mot de passe monitor requis}
+
 volumes:
   postgres_data:
   redis_data:
