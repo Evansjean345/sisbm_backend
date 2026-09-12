@@ -4,7 +4,7 @@ import type { AuditLogger, Clock, ExecutionContext, UnitOfWork, UseCase } from '
 import type { DeviceCommandRepository } from '#domain/security/repositories/device_command_repository'
 import type { VehicleStateReader } from '#application/security/ports'
 import { ActorId, CommandId } from '#domain/security/value_objects'
-import { StalePositionError } from '#domain/security/errors'
+import { NoPositionError, StalePositionError } from '#domain/security/errors'
 
 export interface ValidateImmobilizationInput {
   context: ExecutionContext
@@ -66,6 +66,9 @@ export class ValidateImmobilization implements UseCase<
             : null
           if (!state) return Err(new NotFoundError('État véhicule', input.commandId))
 
+          if (!state.recordedAt || !state.speed) {
+            return Err(new NoPositionError(command.vehicleId?.value ?? input.commandId))
+          }
           const ageSeconds = Math.floor((now.getTime() - state.recordedAt.getTime()) / 1000)
           if (ageSeconds > this.maxPositionAgeSeconds) {
             return Err(new StalePositionError(ageSeconds, this.maxPositionAgeSeconds))

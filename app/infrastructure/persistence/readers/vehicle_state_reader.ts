@@ -41,13 +41,27 @@ export class LucidVehicleStateReader implements VehicleStateReader {
     const row = result.rows?.[0]
     if (!row) return null
 
+    /**
+     * Pas de ligne dans `vehicle_last_positions` : la vitesse et l'horodatage
+     * restent `null`.
+     *
+     * Ne JAMAIS retomber sur `0 km/h` et `new Date(0)` : le premier fait passer
+     * un véhicule de position inconnue pour un véhicule à l'arrêt — donc
+     * coupable — et le second produit un âge de position égal à l'heure Unix,
+     * soit un message d'erreur incompréhensible.
+     */
+    const horodatage = row.recorded_at ? new Date(row.recorded_at) : null
+
     return {
       vehicleId: row.vehicle_id,
       deviceId: row.device_id ?? null,
       // `trusted` : la valeur vient de la base, déjà bornée par un CHECK SQL.
-      speed: Speed.trusted(Number(row.speed_kph ?? 0)),
+      speed:
+        horodatage && row.speed_kph !== null && row.speed_kph !== undefined
+          ? Speed.trusted(Number(row.speed_kph))
+          : null,
       ignition: row.ignition ?? null,
-      recordedAt: row.recorded_at ? new Date(row.recorded_at) : new Date(0),
+      recordedAt: horodatage,
       immobilizationEnabled: Boolean(row.immobilization_enabled),
       deviceHasRelay: Boolean(row.has_relay),
     }

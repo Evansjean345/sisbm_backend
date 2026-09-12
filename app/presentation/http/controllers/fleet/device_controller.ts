@@ -397,6 +397,36 @@ export default class DeviceController {
     const { vehicleId, installNotes } = await ctx.request.validateUsing(assignDeviceValidator)
     const contexte = toExecutionContext(ctx)
 
+    /**
+     * Les deux identifiants sont vérifiés AVANT l'insertion.
+     *
+     * Sans ce contrôle, un UUID inexistant part directement dans le INSERT et
+     * PostgreSQL répond par une violation de clé étrangère
+     * (`device_assignments_device_id_fkey`) : le client reçoit un 409
+     * « contrainte d'intégrité » illisible, alors que la vraie cause est un
+     * boîtier ou un véhicule introuvable — typiquement l'inversion des deux
+     * identifiants, ou une base réinitialisée depuis.
+     */
+    const device = await this.trouver(ctx)
+    if (!device) return this.introuvable(ctx)
+
+    const vehicule = await db
+      .from('vehicles')
+      .where('id', vehicleId)
+      .where('organization_id', contexte.organizationId)
+      .whereNull('deleted_at')
+      .select('id')
+      .first()
+    if (!vehicule) {
+      return ctx.response.notFound({
+        error: {
+          code: 'E_VEHICLE_NOT_FOUND',
+          message: 'Véhicule introuvable dans cette organisation',
+          details: { vehicleId },
+        },
+      })
+    }
+
     await db.transaction(async (trx) => {
       await trx.rawQuery(
         `UPDATE device_assignments
@@ -417,8 +447,7 @@ export default class DeviceController {
       await trx.from('devices').where('id', ctx.params.id).update({ status: 'active' })
     })
 
-    const device = await this.trouver(ctx)
-    if (device) await this.invalider(device)
+    await this.invalider(device)
     return ctx.response.created({ data: { deviceId: ctx.params.id, vehicleId } })
   }
 

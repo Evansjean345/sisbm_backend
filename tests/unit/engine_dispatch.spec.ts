@@ -233,6 +233,20 @@ test.group('sécurité · émission de la coupure moteur', () => {
     assert.isEmpty((gateway as FakeGateway).envois)
   })
 
+  test('aucune position connue : REFUS explicite, pas un âge absurde', async ({ assert }) => {
+    const { use, gateway } = useCase({
+      command: coupureApprouvee(),
+      // Ce que renvoie le lecteur quand vehicle_last_positions est vide.
+      vehicles: etatVehicule({ speed: null, recordedAt: null }),
+    })
+    const r = await use.execute({ context: CONTEXTE, commandId: IDS.command })
+
+    assert.isFalse(r.ok)
+    if (r.ok) return
+    assert.equal(r.error.code, 'E_NO_POSITION')
+    assert.isEmpty((gateway as FakeGateway).envois)
+  })
+
   test('IMMOBILIZATION_ENABLED=false : aucune coupure ne part', async ({ assert }) => {
     const { use, gateway } = useCase({ command: coupureApprouvee(), enabled: false })
     const r = await use.execute({ context: CONTEXTE, commandId: IDS.command })
@@ -286,7 +300,7 @@ test.group('sécurité · rétablissement du moteur', () => {
   test('position absente ou périmée : le rétablissement part quand même', async ({ assert }) => {
     const { use } = useCase({
       command: retablissement(),
-      vehicles: etatVehicule({ recordedAt: new Date(0) }),
+      vehicles: etatVehicule({ speed: null, recordedAt: null }),
     })
     const r = await use.execute({ context: CONTEXTE, commandId: IDS.command })
 

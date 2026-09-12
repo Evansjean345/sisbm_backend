@@ -30,6 +30,22 @@ export interface IngestTelemetryOutput {
   unknownDevices: number
   tripsStarted: number
   tripsClosed: number
+  /**
+   * Trames déjà présentes (`ON CONFLICT DO NOTHING`), typiquement un rejeu de
+   * session MQTT. À distinguer d'un échec : sans cette mesure, un rejeu complet
+   * s'affiche « 0 persistée » et se lit comme une panne.
+   */
+  duplicates: number
+  /**
+   * Décompte par MOTIF de rejet (`null_island`, `invalid_fix`, `poor_hdop`,
+   * `few_satellites`, `future_timestamp`, `implausible_jump`…).
+   *
+   * Sans ce détail, le worker annonce « 6 rejetée(s) » et rien ne permet de
+   * savoir s'il faut sortir le véhicule du parking souterrain, corriger un
+   * seuil ou soupçonner le boîtier. C'est la mesure qui rend l'ingestion
+   * diagnosticable.
+   */
+  rejectedReasons: Record<string, number>
 }
 
 export interface IngestSettings extends QualityThresholds {
@@ -80,6 +96,8 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
       unknownDevices: 0,
       tripsStarted: 0,
       tripsClosed: 0,
+      duplicates: 0,
+      rejectedReasons: {},
     }
     if (input.frames.length === 0) return Ok(out)
 
@@ -89,7 +107,7 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
     for (const f of input.frames) {
       const ident = DeviceIdent.create(f.ident)
       if (!ident.ok) {
-        out.rejected += 1
+        this.compter(out, 'ident_invalide')
         continue
       }
       const cle = ident.value.imei
@@ -139,7 +157,7 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
     for (const frame of frames) {
       const lecture = this.qualifier(frame, device, reference, now)
       if (!lecture) {
-        out.rejected += 1
+        this.compter(out, 'mesure_hors_domaine')
         continue
       }
       lectures.push(lecture)
@@ -173,7 +191,12 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
         tx
       )
       out.persisted += inserees
-      out.rejected += lectures.filter((l) => !l.isValid).length
+      // Écart entre lignes soumises et lignes écrites = doublons ignorés par
+      // `ON CONFLICT DO NOTHING`, donc un rejeu, pas un échec.
+      out.duplicates += Math.max(0, lectures.length - inserees)
+      for (const l of lectures) {
+        if (!l.isValid) this.compter(out, l.invalidReason ?? 'inconnu')
+      }
 
       // ---- État courant : uniquement le dernier point temps réel
       const live = lectures.filter((l) => l.isLive)
@@ -229,6 +252,12 @@ export class IngestTelemetryFrames implements UseCase<IngestTelemetryInput, Inge
   }
 
   // -------------------------------------------------------------------------
+
+  /** Incrémente le total de rejets ET le compteur du motif. */
+  private compter(out: IngestTelemetryOutput, motif: string): void {
+    out.rejected += 1
+    out.rejectedReasons[motif] = (out.rejectedReasons[motif] ?? 0) + 1
+  }
 
   private qualifier(
     frame: TelemetryFrame,

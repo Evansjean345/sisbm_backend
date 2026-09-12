@@ -95,6 +95,28 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       })
     }
 
+    /**
+     * Clé étrangère (23503) : la requête référence une ligne qui n'existe pas.
+     * Ce n'est pas un conflit d'état (409) mais une donnée invalide (422), et
+     * le `detail` de PostgreSQL nomme précisément la colonne et la valeur
+     * fautives — beaucoup plus actionnable que « contrainte d'intégrité ».
+     */
+    if (this.isForeignKeyViolation(error)) {
+      const pg = error as { constraint?: string; detail?: string; table?: string }
+      return ctx.response.status(422).send({
+        error: {
+          code: 'E_UNKNOWN_REFERENCE',
+          message:
+            'La requête référence une ressource inexistante. ' +
+            "Vérifier les identifiants transmis (l'URL et le corps ne sont peut-être pas " +
+            'dans le bon ordre).',
+          details: app.inProduction
+            ? {}
+            : { constraint: pg.constraint, table: pg.table, detail: pg.detail },
+        },
+      })
+    }
+
     if (this.isConstraintViolation(error)) {
       const pg = error as { constraint?: string }
       return ctx.response.status(409).send({
@@ -126,10 +148,17 @@ export default class HttpExceptionHandler extends ExceptionHandler {
     )
   }
 
+  private isForeignKeyViolation(error: unknown): boolean {
+    return this.sqlState(error) === '23503'
+  }
+
   private isConstraintViolation(error: unknown): boolean {
-    if (typeof error !== 'object' || error === null || !('code' in error)) return false
-    const code = (error as { code: string }).code
-    // 23505 unique · 23503 clé étrangère · 23514 check · 23P01 exclusion
-    return ['23505', '23503', '23514', '23P01'].includes(code)
+    // 23505 unique · 23514 check · 23P01 exclusion (23503 traité à part)
+    return ['23505', '23514', '23P01'].includes(this.sqlState(error) ?? '')
+  }
+
+  private sqlState(error: unknown): string | null {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return null
+    return (error as { code: string }).code
   }
 }

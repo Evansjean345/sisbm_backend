@@ -11,6 +11,7 @@ import { CommandId } from '#domain/security/value_objects'
 import {
   DeviceNotEquippedError,
   ImmobilizationDisabledError,
+  NoPositionError,
   StalePositionError,
 } from '#domain/security/errors'
 
@@ -105,6 +106,9 @@ export class DispatchEngineCommand implements UseCase<
             ? await this.vehicles.readSafetyState(command.vehicleId.value)
             : null
           if (!state) return Err(new NotFoundError('État véhicule', input.commandId))
+          if (!state.recordedAt || !state.speed) {
+            return Err(new NoPositionError(command.vehicleId?.value ?? input.commandId))
+          }
 
           const age = Math.floor((now.getTime() - state.recordedAt.getTime()) / 1000)
           if (age > this.settings.maxPositionAgeSeconds) {

@@ -23,6 +23,7 @@ import {
   CommandAlreadyInFlightError,
   DeviceNotEquippedError,
   ImmobilizationDisabledError,
+  NoPositionError,
   StalePositionError,
 } from '#domain/security/errors'
 
@@ -102,6 +103,12 @@ export class RequestImmobilization implements UseCase<
     // ---- 3. fraîcheur de la position
     // Une position vieille de dix minutes ne prouve pas que le véhicule est
     // à l'arrêt. Refuser est le comportement sûr.
+    if (!state.recordedAt || !state.speed) {
+      return Err(new NoPositionError(input.vehicleId))
+    }
+    // Capturée hors fermeture : TypeScript ne conserve pas l'affinement de type
+    // à l'intérieur du callback de transaction.
+    const vitesse = state.speed
     const ageSeconds = Math.floor((now.getTime() - state.recordedAt.getTime()) / 1000)
     if (ageSeconds > this.settings.maxPositionAgeSeconds) {
       return Err(new StalePositionError(ageSeconds, this.settings.maxPositionAgeSeconds))
@@ -129,7 +136,7 @@ export class RequestImmobilization implements UseCase<
           reason: reason.value,
           origin: input.origin ?? 'manual',
           requestedBy: input.context.actorId ? ActorId.from(input.context.actorId) : null,
-          currentSpeed: state.speed,
+          currentSpeed: vitesse,
           ignition: state.ignition,
           safetySpeedLimit: safetyLimit.value,
           requiresValidation: this.settings.requireValidation,
@@ -150,7 +157,7 @@ export class RequestImmobilization implements UseCase<
           resourceType: 'device_command',
           resourceId: command.id.value,
           after: command.snapshot() as unknown as Record<string, unknown>,
-          metadata: { speedAtRequestKph: state.speed.kph, positionAgeSeconds: ageSeconds },
+          metadata: { speedAtRequestKph: vitesse.kph, positionAgeSeconds: ageSeconds },
         })
 
         return Ok({

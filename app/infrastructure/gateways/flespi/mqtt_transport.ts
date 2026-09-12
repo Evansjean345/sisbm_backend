@@ -26,6 +26,34 @@ export interface MqttTransportConfig {
   sessionExpirySeconds: number
   /** Souscription partagée `$share/<groupe>/…` pour répartir la charge entre workers. */
   shareGroup?: string
+  /**
+   * Nombre maximal de tentatives sur un même message avant de déclarer la
+   * panne. Avec le backoff 1 s → 30 s, 20 tentatives ≈ 9 minutes.
+   *
+   * Une borne est INDISPENSABLE : `handleMessage` est séquentiel, donc un
+   * message réessayé sans fin gèle tout le pipeline de paquets — y compris le
+   * SUBACK de l'abonnement, ce qui fait échouer la connexion elle-même.
+   */
+  maxAttempts?: number
+}
+
+/**
+ * SQLSTATE dont le réessai ne changera JAMAIS rien.
+ *
+ *   42 schéma ou privilèges (colonne/table inconnue, droit manquant)
+ *   3F / 3D  schéma ou catalogue inexistant
+ *   22 donnée invalide · 23 contrainte violée · 28 authentification refusée
+ *
+ * À l'inverse, on réessaie indéfiniment sur 08 (connexion), 40 (sérialisation,
+ * verrou mortel), 53 (ressources), 57/58 (arrêt administrateur) : la base
+ * revient, et le broker garde la suite dans la session.
+ */
+const SQLSTATE_DEFINITIF = ['42', '3F', '3D', '22', '23', '28']
+
+function erreurDefinitive(err: unknown): string | null {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return null
+  const code = String((err as { code: unknown }).code)
+  return SQLSTATE_DEFINITIF.includes(code.slice(0, 2)) ? code : null
 }
 
 /**
@@ -66,6 +94,7 @@ export class MqttTelemetryTransport implements TelemetryTransport {
   #arretDemande = false
   #enCours = 0
   #recus = 0
+  #panne: ((err: Error) => void) | null = null
 
   constructor(private readonly config: MqttTransportConfig) {}
 
@@ -87,7 +116,18 @@ export class MqttTelemetryTransport implements TelemetryTransport {
     return this.config.topics.map((t) => (g ? `$share/${g}/${t}` : t))
   }
 
-  async subscribe(handler: (raw: string, topic: string) => Promise<void>): Promise<void> {
+  /**
+   * @param onFatal Appelé quand un message est définitivement intraitable
+   *   (schéma de base incompatible, privilèges manquants) ou que les tentatives
+   *   sont épuisées. Le message n'est PAS acquitté : il reste dans la session
+   *   du broker et sera rejoué après correction. L'appelant doit arrêter le
+   *   worker — continuer reviendrait à perdre silencieusement la télémétrie.
+   */
+  async subscribe(
+    handler: (raw: string, topic: string) => Promise<void>,
+    onFatal?: (err: Error) => void
+  ): Promise<void> {
+    this.#panne = onFatal ?? null
     const url = `${this.config.tls ? 'mqtts' : 'mqtt'}://${this.config.host}:${this.config.port}`
 
     const options: IClientOptions = {
@@ -187,8 +227,9 @@ export class MqttTelemetryTransport implements TelemetryTransport {
   ): Promise<void> {
     this.#enCours += 1
     let attente = 1000
+    const maxEssais = Math.max(1, this.config.maxAttempts ?? 20)
     try {
-      for (;;) {
+      for (let essai = 1; ; essai += 1) {
         try {
           await handler(raw, topic)
           done() // PUBACK après COMMIT
@@ -201,8 +242,34 @@ export class MqttTelemetryTransport implements TelemetryTransport {
             )
             return
           }
+
+          /**
+           * Erreur définitive, ou tentatives épuisées : on cesse de boucler.
+           *
+           * Réessayer indéfiniment sur une colonne manquante gèle le pipeline
+           * MQTT (séquentiel) : plus aucun message n'est lu, le SUBACK n'est
+           * plus traité et le broker finit par fermer la connexion. Le symptôme
+           * observé — « abonnement refusé : Connection closed » suivi d'un
+           * délai de connexion dépassé — a pour cause ce gel, pas le réseau.
+           */
+          const sqlstate = erreurDefinitive(err)
+          if (sqlstate || essai >= maxEssais) {
+            const motif = sqlstate
+              ? `erreur définitive de la base (SQLSTATE ${sqlstate})`
+              : `${maxEssais} tentatives épuisées`
+            logger.fatal(
+              { err, topic, essais: essai, sqlstate },
+              `[mqtt] ingestion interrompue : ${motif}. Message NON acquitté — ` +
+                'il sera rejoué après correction. Vérifier les migrations ' +
+                '(node ace migration:status) et les droits de DB_USER.'
+            )
+            this.#arretDemande = true
+            this.#panne?.(err instanceof Error ? err : new Error(String(err)))
+            return
+          }
+
           logger.error(
-            { err, topic, prochainEssaiMs: attente },
+            { err, topic, essai, maxEssais, prochainEssaiMs: attente },
             '[mqtt] échec de traitement — nouvel essai'
           )
           await new Promise((r) => setTimeout(r, attente))

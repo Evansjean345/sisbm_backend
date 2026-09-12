@@ -12,9 +12,17 @@ import type { Speed } from '#domain/security/value_objects'
 export interface VehicleSafetyState {
   vehicleId: string
   deviceId: string | null
-  speed: Speed
+  /**
+   * `null` quand AUCUNE position n'est connue.
+   *
+   * Surtout pas 0 par défaut : « vitesse inconnue » et « véhicule à l'arrêt »
+   * sont deux états opposés du point de vue de la sécurité, et le second
+   * autorise la coupure moteur.
+   */
+  speed: Speed | null
   ignition: boolean | null
-  recordedAt: Date
+  /** `null` quand aucune position n'est connue — jamais une date sentinelle. */
+  recordedAt: Date | null
   immobilizationEnabled: boolean
   deviceHasRelay: boolean
 }

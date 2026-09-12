@@ -115,6 +115,27 @@ export class DeviceNotEquippedError extends DomainError {
   }
 }
 
+/**
+ * Aucune position n'a JAMAIS été reçue pour ce véhicule.
+ *
+ * À distinguer d'une position périmée : il n'y a rien à périmer. La cause est
+ * en amont (boîtier non monté, ingestion arrêtée, boîtier muet), et le message
+ * doit le dire — sinon on annonce « position vieille de 1 789 178 587 s ».
+ */
+export class NoPositionError extends DomainError {
+  readonly code = 'E_NO_POSITION'
+  readonly httpStatus = 422
+
+  constructor(vehicleId: string) {
+    super(
+      "Aucune position n'a jamais été reçue pour ce véhicule : impossible de " +
+        "vérifier qu'il est à l'arrêt. Vérifier que le boîtier est monté, que " +
+        "l'ingestion tourne (node ace sisbm:ingest) et qu'il émet bien.",
+      { vehicleId }
+    )
+  }
+}
+
 export class StalePositionError extends DomainError {
   readonly code = 'E_STALE_POSITION'
   readonly httpStatus = 422
