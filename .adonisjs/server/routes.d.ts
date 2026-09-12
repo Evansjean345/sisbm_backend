@@ -70,6 +70,8 @@ export type ScannedRoutes = {
     'command.restoreEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'immobilization.store': { paramsTuple?: []; params?: {} }
     'immobilization.validate': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'immobilization.dispatch': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'immobilization.restore': { paramsTuple?: []; params?: {} }
   }
   GET: {
     'auth.me': { paramsTuple?: []; params?: {} }
@@ -159,6 +161,8 @@ export type ScannedRoutes = {
     'command.restoreEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'immobilization.store': { paramsTuple?: []; params?: {} }
     'immobilization.validate': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'immobilization.dispatch': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'immobilization.restore': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'user.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
