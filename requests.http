@@ -505,7 +505,10 @@ Content-Type: application/json
 
 { "reason": "Tentative de contournement du garde-fou" }
 
+# @name immobilization
 ### ✅ La vraie voie : contrôle de vitesse, fraîcheur de position, traçabilité
+### ⚠ Le véhicule doit avoir immobilization_enabled = true, un boîtier avec
+### relais monté, et une position de moins de 2 minutes.
 POST {{api}}/security/immobilizations
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -514,6 +517,38 @@ Content-Type: application/json
   "vehicleId": "aaaaaaaa-0000-4000-8000-000000000001",
   "reason": "Vehicule signale vole par le client"
 }
+
+
+###
+@commandId = {{immobilization.response.body.data.commandId}}
+
+### validation par un SECOND opérateur (jeton d'un autre utilisateur)
+POST {{api}}/security/immobilizations/{{commandId}}/validation
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "decision": "approve" }
+
+### ÉMISSION RÉELLE vers le boîtier — 3e contrôle de vitesse, puis S20 1,1
+### Exige IMMOBILIZATION_ENABLED=true. Véhicule à l'arrêt, personne à bord.
+POST {{api}}/security/immobilizations/{{commandId}}/dispatch
+Authorization: Bearer {{token}}
+
+### RÉTABLISSEMENT — demande + émission (S20 0,0) en un appel
+### Ni second valideur, ni contrôle de vitesse : rendre l'alimentation est l'acte sûr.
+POST {{api}}/security/restorations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleId": "{{vehicleId}}", "reason": "Restitution du vehicule au client" }
+
+### suivi : statut de la commande et résultat renvoyé par le boîtier
+GET {{api}}/devices/{{deviceId}}/commands/history
+Authorization: Bearer {{token}}
+
+###
+POST {{api}}/devices/{{deviceId}}/commands/sync
+Authorization: Bearer {{token}}
 
 
 ### ═════════════════════════════ LIMITATION DE DÉBIT
