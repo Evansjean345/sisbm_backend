@@ -27,3 +27,15 @@ export const validateImmobilizationValidator = vine.compile(
       .requiredWhen('decision', '=', 'reject'),
   })
 )
+
+/**
+ * Rétablissement du moteur : ni vitesse, ni second valideur, mais un motif
+ * obligatoire — c'est la pièce d'audit qui explique pourquoi on a rendu
+ * l'alimentation à un véhicule immobilisé.
+ */
+export const restoreEngineValidator = vine.compile(
+  vine.object({
+    vehicleId: vine.string().uuid(),
+    reason: vine.string().trim().minLength(5).maxLength(500),
+  })
+)

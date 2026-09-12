@@ -24,6 +24,23 @@ export interface VehicleStateReader {
   readSafetyState(vehicleId: string): Promise<VehicleSafetyState | null>
 }
 
+/**
+ * Rattachement d'un boîtier au fournisseur télématique.
+ *
+ * Le contexte Sécurité n'a pas à connaître la table `devices` : il lui faut
+ * seulement l'identifiant que la passerelle comprend.
+ */
+export interface ProviderDevice {
+  deviceId: string
+  /** `flespi_device_id`, ou `null` si le boîtier n'est pas rattaché. */
+  externalDeviceId: string | null
+  hasRelay: boolean
+}
+
+export interface DeviceProviderReader {
+  readProviderDevice(deviceId: string): Promise<ProviderDevice | null>
+}
+
 /** Sortie vers la passerelle télématique (Flespi en Phase 1). */
 export interface DeviceCommandGateway {
   sendEngineCut(input: {

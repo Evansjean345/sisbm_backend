@@ -7,9 +7,20 @@ import { LucidDeviceCommandRepository } from '#infrastructure/persistence/reposi
 import { LucidVehicleStateReader } from '#infrastructure/persistence/readers/vehicle_state_reader'
 import { RequestImmobilization } from '#application/security/use_cases/request_immobilization'
 import { ValidateImmobilization } from '#application/security/use_cases/validate_immobilization'
+import { DispatchEngineCommand } from '#application/security/use_cases/dispatch_engine_command'
+import { RequestEngineRestore } from '#application/security/use_cases/request_engine_restore'
+import { LucidDeviceProviderReader } from '#infrastructure/persistence/readers/device_provider_reader'
 import sisbmConfig from '#config/sisbm'
-import { HttpFlespiCommandGateway } from '#infrastructure/gateways/flespi/flespi_command_gateway'
+import { FlespiClient } from '#infrastructure/gateways/flespi/flespi_client'
+import {
+  HttpFlespiCommandGateway,
+  FlespiDeviceCommandGateway,
+} from '#infrastructure/gateways/flespi/flespi_command_gateway'
 import { FlespiDeviceGateway } from '#infrastructure/gateways/flespi/flespi_device_gateway'
+import { FlespiChannelGateway } from '#infrastructure/gateways/flespi/flespi_channel_gateway'
+import { FlespiProtocolGateway } from '#infrastructure/gateways/flespi/flespi_protocol_gateway'
+import { FlespiCommandTracker } from '#infrastructure/gateways/flespi/flespi_command_tracker'
+import { FlespiProvisioning } from '#infrastructure/gateways/flespi/flespi_provisioning'
 import {
   LucidPositionRepository,
   LucidVehicleLastPositionRepository,
@@ -51,11 +62,38 @@ export default class ContainerProvider {
     }
 
     // ------------------------------------------------------------- Flespi
-    this.app.container.singleton(
-      HttpFlespiCommandGateway,
-      () => new HttpFlespiCommandGateway(flespi)
-    )
-    this.app.container.singleton(FlespiDeviceGateway, () => new FlespiDeviceGateway(flespi))
+    // Un SEUL client HTTP partagé : même jeton, même politique de réessai.
+    this.app.container.singleton(FlespiClient, () => new FlespiClient(flespi))
+    this.app.container.singleton(FlespiChannelGateway, async (resolver) => {
+      return new FlespiChannelGateway(await resolver.make(FlespiClient))
+    })
+    this.app.container.singleton(FlespiDeviceGateway, async (resolver) => {
+      return new FlespiDeviceGateway(await resolver.make(FlespiClient))
+    })
+    // Singleton : son cache du catalogue protocoles n'a d'intérêt que partagé.
+    this.app.container.singleton(FlespiProtocolGateway, async (resolver) => {
+      return new FlespiProtocolGateway(await resolver.make(FlespiClient))
+    })
+    this.app.container.singleton(HttpFlespiCommandGateway, async (resolver) => {
+      return new HttpFlespiCommandGateway(await resolver.make(FlespiClient))
+    })
+    this.app.container.singleton(FlespiCommandTracker, async (resolver) => {
+      return new FlespiCommandTracker(await resolver.make(HttpFlespiCommandGateway))
+    })
+    this.app.container.singleton(FlespiProvisioning, async (resolver) => {
+      return new FlespiProvisioning(
+        await resolver.make(FlespiChannelGateway),
+        await resolver.make(FlespiDeviceGateway),
+        await resolver.make(FlespiProtocolGateway)
+      )
+    })
+    // Adaptateur du port sécurité — prêt pour le branchement de l'immobilisation (Jalon 3).
+    this.app.container.singleton(FlespiDeviceCommandGateway, async (resolver) => {
+      return new FlespiDeviceCommandGateway(
+        await resolver.make(HttpFlespiCommandGateway),
+        immo.commandTtlMinutes * 60
+      )
+    })
 
     // ------------------------------------------------------------- télémétrie
     // Le résolveur est un SINGLETON : son cache mémoire n'a d'intérêt que
@@ -87,6 +125,42 @@ export default class ContainerProvider {
           requireValidation: immo.requireValidation,
           commandTtlMinutes: immo.commandTtlMinutes,
           maxPositionAgeSeconds: immo.maxPositionAgeSeconds,
+        }
+      )
+    })
+
+    /**
+     * Émission réelle vers le boîtier. Le garde-fou `immo.enabled`
+     * (IMMOBILIZATION_ENABLED) est porté par le cas d'usage : tant qu'il est
+     * à `false`, aucune coupure ne part, quel que soit l'appelant.
+     */
+    this.app.container.singleton(DispatchEngineCommand, async (resolver) => {
+      return new DispatchEngineCommand(
+        new LucidUnitOfWork(),
+        new LucidDeviceCommandRepository(),
+        new LucidVehicleStateReader(),
+        new LucidDeviceProviderReader(),
+        await resolver.make(FlespiDeviceCommandGateway),
+        new SystemClock(),
+        new LucidAuditLogger(),
+        {
+          enabled: immo.enabled,
+          maxPositionAgeSeconds: immo.maxPositionAgeSeconds,
+        }
+      )
+    })
+
+    this.app.container.singleton(RequestEngineRestore, () => {
+      return new RequestEngineRestore(
+        new LucidUnitOfWork(),
+        new LucidDeviceCommandRepository(),
+        new LucidVehicleStateReader(),
+        new SystemClock(),
+        new UuidGenerator(),
+        new LucidAuditLogger(),
+        {
+          safetySpeedKph: immo.safetySpeedKph,
+          commandTtlMinutes: immo.commandTtlMinutes,
         }
       )
     })

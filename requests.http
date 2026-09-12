@@ -152,19 +152,44 @@ Content-Type: application/json
 @deviceId = {{createDevice.response.body.data.id}}
 
 ### créer AVEC synchronisation Flespi
-### Le `0` de tête Micodus est ajouté automatiquement dans flespiIdent.
+### Micodus : ident flespi = « 0 » + ID imprimé sur l'étiquette (terminalId), PAS l'IMEI.
+### Le type « Micodus MV730 » est résolu dans le protocole du canal (FLESPI_CHANNEL_ID).
+### En cas de doute sur l'ident : GET /flespi/channels/:id/idents une fois le boîtier branché.
 POST {{api}}/devices
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "imei": "352625333222222",
+  "imei": "864356060535359",
+  "terminalId": "12345678901",
   "model": "MV730",
+  "name": "Véhicule AB-123-CD",
   "hasRelay": true,
+  "simMsisdn": "+2250700000000",
   "syncFlespi": true,
-  "flespiChannelId": 1234,
-  "flespiDeviceTypeId": "Micodus MV730"
+  "flespiChannelId": 1442013,
+  "flespiDeviceType": "Micodus MV730"
 }
+
+### ⚠ type d'un autre protocole (350 = Concox AT6 sur canal micodus) → 422 E_FLESPI_DEVICE_TYPE_MISMATCH
+POST {{api}}/devices
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "imei": "864356060535358",
+  "terminalId": "12345678902",
+  "model": "MV730",
+  "syncFlespi": true,
+  "flespiDeviceType": "350"
+}
+
+### rattacher après coup un boîtier créé en stock (ou dont le device flespi a été recréé)
+POST {{api}}/devices/{{deviceId}}/flespi/sync
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "flespiIdent": "012345678901", "linkExisting": true }
 
 ### consulter — inclut l'affectation en cours
 GET {{api}}/devices/{{deviceId}}
@@ -175,7 +200,7 @@ PATCH {{api}}/devices/{{deviceId}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "flespiDeviceId": 98765, "status": "active" }
+{ "status": "active", "simMsisdn": "+2250700000001", "name": "Véhicule AB-123-CD" }
 
 ### monter sur un véhicule — affectation DATÉE
 POST {{api}}/devices/{{deviceId}}/assignment
@@ -213,6 +238,87 @@ Authorization: Bearer {{token}}
 GET {{api}}/devices/{{deviceId}}/telemetry/history?from=2026-08-19T00:00:00Z&to=2026-08-19T23:59:59Z
 Authorization: Bearer {{token}}
 
+### diagnostic complet : type, protocole vs canal, ident, dernière trame, problèmes détectés
+GET {{api}}/devices/{{deviceId}}/flespi
+Authorization: Bearer {{token}}
+
+### journal flespi du device (connexions, erreurs)
+GET {{api}}/devices/{{deviceId}}/flespi/logs?count=50
+Authorization: Bearer {{token}}
+
+### dernière valeur de chaque paramètre
+GET {{api}}/devices/{{deviceId}}/flespi/telemetry
+Authorization: Bearer {{token}}
+
+### catalogue RÉEL des commandes que flespi accepte pour CE boîtier
+GET {{api}}/devices/{{deviceId}}/flespi/commands
+Authorization: Bearer {{token}}
+
+
+### ═════════════════════════════ CANAUX FLESPI
+
+### santé : jeton, canal configuré, broker
+GET {{api}}/flespi/health
+Authorization: Bearer {{token}}
+
+### protocoles (recherche)
+GET {{api}}/flespi/protocols?search=micodus
+Authorization: Bearer {{token}}
+
+### types de boîtiers du protocole micodus → id numérique du MV730
+GET {{api}}/flespi/protocols/micodus/device-types?search=mv730
+Authorization: Bearer {{token}}
+
+### fiche complète du type (schéma d'ident, commandes)
+GET {{api}}/flespi/protocols/micodus/device-types/Micodus%20MV730
+Authorization: Bearer {{token}}
+
+### lister les canaux
+GET {{api}}/flespi/channels
+Authorization: Bearer {{token}}
+
+### créer le canal micodus (un seul pour toute la flotte)
+# @name createChannel
+POST {{api}}/flespi/channels
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "sisbm_channel", "protocolName": "micodus" }
+
+###
+@channelId = 1442013
+
+### consulter
+GET {{api}}/flespi/channels/{{channelId}}
+Authorization: Bearer {{token}}
+
+### modifier
+PATCH {{api}}/flespi/channels/{{channelId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "messagesTtl": 86400 }
+
+### journal du canal
+GET {{api}}/flespi/channels/{{channelId}}/logs?count=50
+Authorization: Bearer {{token}}
+
+### tampon de messages (inclut les boîtiers non enregistrés)
+GET {{api}}/flespi/channels/{{channelId}}/messages?currKey=0&limit=100
+Authorization: Bearer {{token}}
+
+### connexions TCP actives
+GET {{api}}/flespi/channels/{{channelId}}/connections
+Authorization: Bearer {{token}}
+
+### idents vus sur le canal, croisés avec SISBM et flespi
+GET {{api}}/flespi/channels/{{channelId}}/idents
+Authorization: Bearer {{token}}
+
+### supprimer — refusé (409) pour le canal de production sans ?force=true
+DELETE {{api}}/flespi/channels/{{channelId}}
+Authorization: Bearer {{token}}
+
 
 ### ═════════════════════════════ COMMANDES SUR BOÎTIER RÉEL
 ### ⚠ Ces appels agissent sur du MATÉRIEL installé dans un véhicule.
@@ -225,6 +331,44 @@ Authorization: Bearer {{token}}
 ### historique des commandes émises
 GET {{api}}/devices/{{deviceId}}/commands/history
 Authorization: Bearer {{token}}
+
+### réconcilier les commandes en vol avec flespi (acknowledged / failed / expired)
+POST {{api}}/devices/{{deviceId}}/commands/sync
+Authorization: Bearer {{token}}
+
+### résultats bruts flespi + file d'attente
+GET {{api}}/devices/{{deviceId}}/commands/results
+Authorization: Bearer {{token}}
+
+### commande flespi brute, validée contre le catalogue du boîtier — ex. lire l'APN
+POST {{api}}/devices/{{deviceId}}/commands/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "setting.network.get", "properties": {}, "reason": "Vérification APN recette" }
+
+### mode instantané (boîtier connecté requis) — intervalle de suivi 30 s en mouvement, 10 min à l'arrêt
+POST {{api}}/devices/{{deviceId}}/commands/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "setting.working_mode.set",
+  "properties": { "mode": { "type": 1, "time_move": 30, "time_stat": 600 } },
+  "reason": "Recette suivi temps réel",
+  "mode": "instant"
+}
+
+### ⚠ réglage critique sans confirm → 422 E_CONFIRMATION_REQUIRED
+POST {{api}}/devices/{{deviceId}}/commands/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "setting.server.set",
+  "properties": { "mode": { "type": 1, "domain": "ch1442013.flespi.gw", "port": 39142 } },
+  "reason": "Reprogrammation serveur"
+}
 
 
 ### ── DIAGNOSTIC (sans risque — commencer par là) ──────────────

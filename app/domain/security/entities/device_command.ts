@@ -15,6 +15,7 @@ import {
   CommandExpiredError,
   InvalidTransitionError,
   SelfValidationError,
+  UnsafeSpeedError,
   VehicleInMotionError,
 } from '#domain/security/errors'
 import {
@@ -159,6 +160,57 @@ export class DeviceCommand extends AggregateRoot<CommandId> {
     return Ok(command)
   }
 
+  /**
+   * Rétablissement du moteur.
+   *
+   * Aucun garde-fou de vitesse : rendre l'alimentation à un véhicule est
+   * toujours plus sûr que de la lui retirer. Aucune validation par un second
+   * opérateur non plus — exiger deux personnes pour LEVER une immobilisation
+   * transformerait une erreur en immobilisation prolongée.
+   */
+  static requestEngineRestore(input: {
+    id: CommandId
+    organizationId: string
+    deviceId: DeviceId
+    vehicleId: VehicleId | null
+    reason: Reason
+    origin: CommandOrigin
+    requestedBy: ActorId | null
+    safetySpeedLimit: Speed
+    ttlMinutes: number
+    now: Date
+  }): Result<DeviceCommand> {
+    const command = new DeviceCommand(input.id, {
+      organizationId: input.organizationId,
+      deviceId: input.deviceId,
+      vehicleId: input.vehicleId,
+      commandType: 'engine_restore',
+      status: 'approved',
+      reason: input.reason,
+      origin: input.origin,
+      requestedBy: input.requestedBy,
+      requestedAt: input.now,
+      safetySpeedLimit: input.safetySpeedLimit,
+      speedAtRequest: null,
+      ignitionAtRequest: null,
+      requiresValidation: false,
+      validatedBy: null,
+      validatedAt: null,
+      rejectionReason: null,
+      queuedAt: null,
+      sentAt: null,
+      acknowledgedAt: null,
+      failedAt: null,
+      errorMessage: null,
+      providerCommandId: null,
+      attempts: 0,
+      expiresAt: new Date(input.now.getTime() + input.ttlMinutes * 60_000),
+      policyId: null,
+      alertId: null,
+    })
+    return Ok(command)
+  }
+
   /** Reconstitution depuis la persistance — aucune règle rejouée. */
   static rehydrate(id: CommandId, props: DeviceCommandProps): DeviceCommand {
     return new DeviceCommand(id, props)
@@ -222,13 +274,27 @@ export class DeviceCommand extends AggregateRoot<CommandId> {
 
   // -------------------------------------------------------------- exécution
 
-  /** Mise en file : dernier contrôle de vitesse avant transmission au tracker. */
-  queue(input: { currentSpeed: Speed; now: Date }): Result<void> {
+  /**
+   * Mise en file : dernier contrôle de vitesse avant transmission au tracker.
+   *
+   * Le garde-fou CM-07 ne s'applique qu'à la COUPURE. Refuser un
+   * rétablissement parce que le véhicule roule laisserait un moteur coupé
+   * sur un véhicule lancé : l'inverse du but recherché.
+   */
+  queue(input: { currentSpeed: Speed | null; now: Date }): Result<void> {
     const transition = this.ensureTransition('queued', input.now)
     if (!transition.ok) return transition
 
-    if (!input.currentSpeed.isAtOrBelow(this.props.safetySpeedLimit)) {
-      return Err(new VehicleInMotionError(input.currentSpeed.kph, this.props.safetySpeedLimit.kph))
+    if (this.props.commandType === 'engine_cut') {
+      if (!input.currentSpeed) {
+        return Err(new UnsafeSpeedError('Vitesse inconnue : coupure moteur refusée'))
+      }
+      if (!input.currentSpeed.isAtOrBelow(this.props.safetySpeedLimit)) {
+        return Err(
+          new VehicleInMotionError(input.currentSpeed.kph, this.props.safetySpeedLimit.kph)
+        )
+      }
+      this.props.speedAtRequest = input.currentSpeed
     }
 
     this.props.status = 'queued'

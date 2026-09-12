@@ -94,6 +94,10 @@ export class CachedDeviceResolver implements DeviceResolver {
    * la normalisation.
    */
   private async charger(ident: string): Promise<ResolvedDevice | null> {
+    // Forme `flespi:{id}` : trame sans ident, rapprochée par l'id du device flespi.
+    const flespi = /^flespi:(\d+)$/.exec(ident)
+    if (flespi) return this.chargerParFlespiId(Number(flespi[1]))
+
     const r = await db.rawQuery(
       `SELECT d.id            AS device_id,
               d.organization_id,
@@ -103,12 +107,15 @@ export class CachedDeviceResolver implements DeviceResolver {
          FROM devices d
          LEFT JOIN device_assignments da
                 ON da.device_id = d.id AND upper_inf(da.period)
-        WHERE (d.imei = :ident OR d.flespi_ident = :ident OR d.imei = :sansZero)
+        WHERE (d.imei = :ident OR d.flespi_ident = :ident OR d.imei = :sansZero
+               OR d.flespi_ident = :sansZero OR d.flespi_ident = :avecZero)
           AND d.deleted_at IS NULL
         LIMIT 1`,
       {
         ident,
         sansZero: ident.startsWith('0') && ident.length > 1 ? ident.slice(1) : ident,
+        // Micodus : un boîtier déclaré « 0 + ID » avant correction reste reconnu.
+        avecZero: `0${ident}`,
       } as never
     )
 
@@ -121,6 +128,26 @@ export class CachedDeviceResolver implements DeviceResolver {
       vehicleId: l.vehicle_id ? String(l.vehicle_id) : null,
       hasRelay: Boolean(l.has_relay),
       flespiDeviceId: l.flespi_device_id ? Number(l.flespi_device_id) : null,
+    }
+  }
+
+  private async chargerParFlespiId(flespiDeviceId: number): Promise<ResolvedDevice | null> {
+    const r = await db.rawQuery(
+      `SELECT d.id AS device_id, d.organization_id, d.has_relay, d.flespi_device_id, da.vehicle_id
+         FROM devices d
+         LEFT JOIN device_assignments da ON da.device_id = d.id AND upper_inf(da.period)
+        WHERE d.flespi_device_id = :id AND d.deleted_at IS NULL
+        LIMIT 1`,
+      { id: flespiDeviceId } as never
+    )
+    const l = r.rows?.[0]
+    if (!l) return null
+    return {
+      deviceId: String(l.device_id),
+      organizationId: String(l.organization_id),
+      vehicleId: l.vehicle_id ? String(l.vehicle_id) : null,
+      hasRelay: Boolean(l.has_relay),
+      flespiDeviceId: Number(l.flespi_device_id),
     }
   }
 

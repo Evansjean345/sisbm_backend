@@ -6,51 +6,66 @@ export interface MqttTransportConfig {
   host: string
   port: number
   tls: boolean
+  /** STABLE d'un démarrage à l'autre : la session persistante y est attachée. */
   clientId: string
+  /** flespi : username = jeton, mot de passe vide. */
   username?: string
   password?: string
   topics: string[]
-  qos: 0 | 1 | 2
+  /** flespi ne gère que QoS 0 et 1. */
+  qos: 0 | 1
   reconnectPeriodMs: number
   connectTimeoutMs: number
-  /** Plafond de la file interne — mécanisme de contre-pression. */
-  maxInflightQueue: number
+  /**
+   * MQTT 5 « Receive Maximum » : nombre de messages QoS 1 non acquittés que
+   * le broker peut nous envoyer. C'est LE mécanisme de contre-pression : au-delà,
+   * le broker garde les messages dans la session au lieu de nous les pousser.
+   */
+  receiveMaximum: number
+  /** Rétention de la session côté broker pendant une coupure, en secondes. */
+  sessionExpirySeconds: number
+  /** Souscription partagée `$share/<groupe>/…` pour répartir la charge entre workers. */
+  shareGroup?: string
 }
 
 /**
  * =========================================================================
- *  TRANSPORT MQTT — adaptateur d'infrastructure
+ *  TRANSPORT MQTT — broker flespi (mqtt.flespi.io)
  * =========================================================================
  *
- * Trois propriétés distinguent une ingestion robuste d'une ingestion naïve.
+ * Défauts corrigés par rapport à la version précédente :
  *
- * ① ACQUITTEMENT APRÈS PERSISTANCE
- *    En MQTT.js 5, le PUBACK d'un message QoS 1 est émis DANS le callback de
- *    `handleMessage` (cf. handlers/publish.js). En surchargeant cette méthode,
- *    on maîtrise l'instant exact de l'acquittement : il n'est envoyé qu'une
- *    fois le COMMIT effectué.
+ *  ✗ Contre-pression par `unsubscribe()`. Sur une session persistante, se
+ *    désabonner SUPPRIME l'abonnement côté broker : tout message publié
+ *    pendant la suspension était PERDU — exactement pendant une rafale.
+ *  ✓ Contre-pression native MQTT 5 : `receiveMaximum`. Le broker ne dépasse
+ *    jamais ce nombre de messages en vol ; le reste attend dans la session.
  *
- *    ⚠ L'option `manualAcks` des versions 4.x n'existe plus en 5.x — c'est
- *    `handleMessage` qui joue ce rôle. Si la base est indisponible, on ne
- *    rappelle pas le callback : le broker rejouera. Une base lente provoque
- *    un retard, jamais une perte.
+ *  ✗ `clientId = sisbm-ingest-${pid}` : un nouvel identifiant à chaque
+ *    démarrage, donc une NOUVELLE session. Les messages retenus pendant
+ *    l'arrêt restaient dans l'ancienne session, jamais relue.
+ *  ✓ `clientId` stable (config). Plusieurs workers ⇒ un clientId chacun +
+ *    souscription partagée `$share/<groupe>/…`.
  *
- * ② CONTRE-PRESSION
- *    Au-delà de `maxInflightQueue`, le client cesse de consommer. La pression
- *    remonte jusqu'au broker au lieu de saturer la mémoire du processus. Sans
- *    ce garde-fou, une rafale de Store & Forward fait tomber le worker.
+ *  ✗ En cas d'échec de traitement, le message n'était pas acquitté puis on
+ *    passait au suivant : il ne revenait qu'à la reconnexion suivante, et
+ *    une base en panne remplissait silencieusement la fenêtre d'envoi.
+ *  ✓ On RÉESSAIE le même message (backoff 1 s → 30 s) sans l'acquitter. Le
+ *    flux s'arrête proprement, le broker retient la suite dans la session :
+ *    une base lente ou en panne provoque un retard, jamais une perte.
  *
- * ③ ARRÊT GRACIEUX
- *    À l'arrêt, on cesse de souscrire, on laisse les messages en cours
- *    terminer leur transaction, puis on ferme. `tini` en PID 1 dans le
- *    Dockerfile est ce qui rend le SIGTERM recevable par Node.
+ * Point clé de MQTT.js 5 : `handleMessage` est appelé SÉQUENTIELLEMENT — le
+ * paquet suivant n'est lu qu'une fois le callback du précédent invoqué, et le
+ * PUBACK part dans ce callback. Toute « fenêtre de regroupement » qui retient
+ * le callback ne regroupe donc rien : elle ajoute seulement sa durée à
+ * chaque message (300 ms ⇒ 3 messages/s maximum). Le traitement est donc
+ * immédiat, message par message.
  */
-
 export class MqttTelemetryTransport implements TelemetryTransport {
   #client: MqttClient | null = null
   #arretDemande = false
   #enCours = 0
-  #suspendu = false
+  #recus = 0
 
   constructor(private readonly config: MqttTransportConfig) {}
 
@@ -62,6 +77,16 @@ export class MqttTelemetryTransport implements TelemetryTransport {
     return this.#enCours
   }
 
+  get received(): number {
+    return this.#recus
+  }
+
+  /** Topics effectivement souscrits (avec préfixe de partage éventuel). */
+  get subscriptions(): string[] {
+    const g = this.config.shareGroup?.trim()
+    return this.config.topics.map((t) => (g ? `$share/${g}/${t}` : t))
+  }
+
   async subscribe(handler: (raw: string, topic: string) => Promise<void>): Promise<void> {
     const url = `${this.config.tls ? 'mqtts' : 'mqtt'}://${this.config.host}:${this.config.port}`
 
@@ -69,49 +94,91 @@ export class MqttTelemetryTransport implements TelemetryTransport {
       clientId: this.config.clientId,
       username: this.config.username,
       password: this.config.password,
-      // MQTT 5 : requis pour l'expiration par message posée côté Flespi.
       protocolVersion: 5,
       clean: false, // session persistante : le broker retient pendant une coupure
       reconnectPeriod: this.config.reconnectPeriodMs,
       connectTimeout: this.config.connectTimeoutMs,
-      manualConnect: false,
       resubscribe: true,
+      keepalive: 60,
       properties: {
-        // TTL de session : au-delà, le broker cesse de retenir pour ce client.
-        sessionExpiryInterval: 3600,
+        sessionExpiryInterval: this.config.sessionExpirySeconds,
+        receiveMaximum: Math.max(1, Math.min(this.config.receiveMaximum, 65535)),
       },
     }
 
     await new Promise<void>((resolve, reject) => {
+      let premiereConnexion = true
       const client = mqtt.connect(url, options)
       this.#client = client
 
-      // ---- ① point de contrôle de l'acquittement QoS 1
       client.handleMessage = (packet: IPublishPacket, done: (e?: Error) => void) => {
-        if (this.#arretDemande) return done()
-        const topic = packet.topic
+        if (this.#arretDemande) return // ni traitement ni acquittement : rejoué à la reprise
+        this.#recus += 1
         const raw = packet.payload.toString('utf8')
-        void this.traiter(handler, topic, raw, done)
+        void this.traiter(handler, packet.topic, raw, done)
       }
 
-      client.on('connect', () => {
-        logger.info({ url, topics: this.config.topics }, '[mqtt] connecté au broker')
-        client.subscribe(this.config.topics, { qos: this.config.qos }, (err) =>
-          err ? reject(err) : resolve()
+      client.on('connect', (connack) => {
+        logger.info(
+          {
+            url,
+            clientId: this.config.clientId,
+            sessionPresent: connack.sessionPresent,
+            topics: this.subscriptions,
+          },
+          '[mqtt] connecté au broker'
         )
+        // Reconnexion : MQTT.js (`resubscribe: true`) rétablit lui-même les
+        // abonnements si la session n'a pas été retrouvée.
+        if (!premiereConnexion) return
+        client.subscribe(this.subscriptions, { qos: this.config.qos }, (err, granted) => {
+          if (err) {
+            logger.error({ err }, '[mqtt] abonnement refusé')
+            if (premiereConnexion) reject(err)
+            return
+          }
+          // flespi répond 0x87 (not authorized) si le jeton n'a pas les droits ACL.
+          const refuses = (granted ?? []).filter((g) => g.qos > 2)
+          if (refuses.length) {
+            const e = new Error(
+              `[mqtt] abonnement refusé par le broker : ${refuses.map((r) => r.topic).join(', ')} (ACL du jeton ?)`
+            )
+            logger.error(e.message)
+            if (premiereConnexion) return reject(e)
+          }
+          if (premiereConnexion) {
+            premiereConnexion = false
+            resolve()
+          }
+        })
       })
 
       client.on('reconnect', () => logger.warn('[mqtt] reconnexion en cours'))
       client.on('offline', () => logger.warn('[mqtt] hors ligne'))
-      client.on('error', (err) => logger.error({ err }, '[mqtt] erreur de transport'))
+      client.on('error', (err) => {
+        logger.error({ err: err.message }, '[mqtt] erreur de transport')
+        // Jeton invalide, hôte injoignable… au premier démarrage : on échoue franchement.
+        if (premiereConnexion) {
+          client.end(true)
+          reject(err)
+        }
+      })
 
-      setTimeout(
-        () => reject(new Error('[mqtt] délai de connexion dépassé')),
-        this.config.connectTimeoutMs + 2000
-      ).unref?.()
+      setTimeout(() => {
+        if (premiereConnexion) {
+          client.end(true)
+          reject(new Error(`[mqtt] délai de connexion dépassé vers ${url}`))
+        }
+      }, this.config.connectTimeoutMs + 5000).unref?.()
     })
   }
 
+  /**
+   * Traite un message jusqu'au succès (ou jusqu'à l'arrêt), PUIS l'acquitte.
+   * Le handler doit lever une exception pour une erreur TRANSITOIRE (base
+   * indisponible) et rendre la main normalement pour une trame définitivement
+   * inexploitable (déjà journalisée par lui) — sinon elle bloquerait le flux.
+   */
   private async traiter(
     handler: (raw: string, topic: string) => Promise<void>,
     topic: string,
@@ -119,42 +186,35 @@ export class MqttTelemetryTransport implements TelemetryTransport {
     done: (e?: Error) => void
   ): Promise<void> {
     this.#enCours += 1
-    this.appliquerContrePression()
-
+    let attente = 1000
     try {
-      await handler(raw, topic)
-      // Acquittement : le PUBACK part ici, après le COMMIT.
-      done()
-    } catch (err) {
-      logger.error({ err, topic }, '[mqtt] échec de traitement — message NON acquitté')
-      // On propage l'erreur SANS acquitter : le broker rejouera.
-      done(err as Error)
+      for (;;) {
+        try {
+          await handler(raw, topic)
+          done() // PUBACK après COMMIT
+          return
+        } catch (err) {
+          if (this.#arretDemande) {
+            logger.warn(
+              { topic },
+              '[mqtt] arrêt pendant un réessai — message non acquitté, sera rejoué'
+            )
+            return
+          }
+          logger.error(
+            { err, topic, prochainEssaiMs: attente },
+            '[mqtt] échec de traitement — nouvel essai'
+          )
+          await new Promise((r) => setTimeout(r, attente))
+          attente = Math.min(attente * 2, 30_000)
+        }
+      }
     } finally {
       this.#enCours -= 1
-      this.appliquerContrePression()
     }
   }
 
-  /** ② Suspend ou reprend la consommation selon la charge en cours. */
-  private appliquerContrePression(): void {
-    const client = this.#client
-    if (!client) return
-
-    if (!this.#suspendu && this.#enCours >= this.config.maxInflightQueue) {
-      this.#suspendu = true
-      client.unsubscribe(this.config.topics)
-      logger.warn({ enCours: this.#enCours }, '[mqtt] contre-pression — consommation suspendue')
-      return
-    }
-
-    if (this.#suspendu && this.#enCours <= this.config.maxInflightQueue / 2) {
-      this.#suspendu = false
-      client.subscribe(this.config.topics, { qos: this.config.qos })
-      logger.info('[mqtt] consommation reprise')
-    }
-  }
-
-  /** ③ Arrêt gracieux : on laisse les transactions en cours se terminer. */
+  /** Arrêt gracieux : on laisse le message en cours terminer sa transaction. */
   async disconnect(): Promise<void> {
     this.#arretDemande = true
     const client = this.#client
@@ -165,10 +225,6 @@ export class MqttTelemetryTransport implements TelemetryTransport {
     while (this.#enCours > 0 && Date.now() < echeance) {
       await new Promise((r) => setTimeout(r, 100))
     }
-    if (this.#enCours > 0) {
-      logger.warn({ enCours: this.#enCours }, '[mqtt] arrêt forcé, messages non acquittés')
-    }
-
     await new Promise<void>((resolve) => client.end(false, {}, () => resolve()))
     this.#client = null
     logger.info('[mqtt] déconnecté')
@@ -177,9 +233,6 @@ export class MqttTelemetryTransport implements TelemetryTransport {
 
 /**
  * Transport en MÉMOIRE — pour les tests.
- *
- * C'est l'intérêt du port : la chaîne complète se teste sans broker, sans
- * conteneur et sans réseau.
  */
 export class InMemoryTelemetryTransport implements TelemetryTransport {
   #handler: ((raw: string, topic: string) => Promise<void>) | null = null
@@ -194,8 +247,8 @@ export class InMemoryTelemetryTransport implements TelemetryTransport {
     this.#connecte = true
   }
 
-  /** Injecte une trame comme si elle venait du broker. */
-  async emit(raw: string, topic = 'sisbm/telemetry/000000000000000/data'): Promise<void> {
+  /** Injecte une trame comme si elle venait du broker flespi. */
+  async emit(raw: string, topic = 'flespi/message/gw/devices/1'): Promise<void> {
     if (!this.#handler) throw new Error('aucun abonnement actif')
     await this.#handler(raw, topic)
   }

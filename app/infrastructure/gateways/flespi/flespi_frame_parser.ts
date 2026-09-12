@@ -12,6 +12,9 @@ import type { TelemetryFrame } from '#application/telemetry/dto/telemetry_frame'
  * des boîtiers, on écrit un second analyseur : le domaine, les cas d'usage et
  * la base ne bougent pas.
  *
+ * Source : broker MQTT flespi, topic `flespi/message/gw/devices/{device_id}`,
+ * un message JSON par publication (l'API REST renvoie, elle, des tableaux).
+ *
  * Flespi normalise déjà les trames binaires du MV730 en JSON à plat, avec des
  * clés pointées :
  *
@@ -89,10 +92,23 @@ export class FlespiFrameParser {
   }
 
   private parseOne(brut: Brut, topic?: string): TelemetryFrame {
-    // L'identifiant peut venir de la trame ou du topic `sisbm/telemetry/{ident}/data`.
+    /**
+     * Identifiant du boîtier :
+     *  1. `ident` de la trame — toujours présent sur les messages de device ;
+     *  2. à défaut, l'id du device flespi (`device.id` ou topic
+     *     `flespi/message/gw/devices/{id}`), transmis sous la forme
+     *     `flespi:{id}` que le résolveur sait rapprocher de `flespi_device_id`.
+     *
+     * ⚠ `device.id` n'est PAS un IMEI : l'ancienne version le traitait comme tel.
+     */
+    const flespiId = nombre(brut['device.id']) ?? FlespiFrameParser.deviceIdFromTopic(topic)
+    const identTrame = premier(brut, 'ident', 'imei')
     const identBrut =
-      (premier(brut, 'ident', 'device.id', 'imei') as string | null) ??
-      (topic ? (topic.split('/')[2] ?? null) : null)
+      identTrame !== null && String(identTrame).trim() !== ''
+        ? String(identTrame).trim()
+        : flespiId !== null
+          ? `flespi:${flespiId}`
+          : null
 
     if (!identBrut) {
       throw new FlespiParseError('identifiant de boîtier absent', brut)
@@ -133,8 +149,21 @@ export class FlespiFrameParser {
       isValidFix,
       ignition: booleen(premier(brut, 'engine.ignition.status', 'ignition')),
       movement: booleen(premier(brut, 'movement.status', 'movement')),
-      engineBlocked: booleen(premier(brut, 'engine.blocked.status')),
-      gsmSignal: nombre(premier(brut, 'gsm.signal.level', 'gsm.signal.quality')),
+      /**
+       * Moteur coupé.
+       *
+       * `engine.blocked.status` n'existe pas dans le protocole micodus. Le
+       * MV730 encode l'état du relais dans le masque `vehicle.state`, relevé
+       * sur boîtier réel le 12/09/2026 :
+       *
+       *   S20 1,1 (coupure)        → vehicle.state F7FFFBFF
+       *   S20 0,0 (rétablissement) → vehicle.state FFFFFBFF
+       *
+       * Seul le bit 0x08000000 change, et il vaut 0 quand le moteur est
+       * coupé (convention du protocole HQ : un bit à 0 = état actif).
+       */
+      engineBlocked: this.moteurCoupe(brut),
+      gsmSignal: nombre(premier(brut, 'gsm.signal.level', 'gsm.signal.quality', 'gsm.signal.dbm')),
       batteryPct: nombre(premier(brut, 'battery.level', 'battery.percentage')),
       externalVoltageV: nombre(
         premier(brut, 'external.powersource.voltage', 'power.supply.voltage')
@@ -150,9 +179,32 @@ export class FlespiFrameParser {
    * `{ident}:{timestamp}` suffit — c'est exactement la granularité de la
    * contrainte d'unicité `(device_id, recorded_at)` posée au Jalon 1.
    */
-  private externalId(brut: Brut, ident: string, recordedAt: Date): string {
-    const fourni = premier(brut, 'message.id', 'id', 'flespi.message.id')
-    if (fourni !== null) return `${ident}:${String(fourni)}`
+  private externalId(_brut: Brut, ident: string, recordedAt: Date): string {
+    // Les messages flespi ne portent pas d'identifiant propre : `id` ou
+    // `device.id` désignent le DEVICE, pas le message — les utiliser faisait
+    // de toutes les trames d'un boîtier des doublons de la première.
     return `${ident}:${recordedAt.getTime()}`
+  }
+
+  /** Bit du masque `vehicle.state` portant l'état du relais de coupure. */
+  static readonly MASQUE_COUPURE_MOTEUR = 0x08000000
+
+  /**
+   * `null` si la trame ne porte pas le masque : on ne DEVINE jamais l'état
+   * d'une coupure moteur, c'est la donnée la plus sensible du système.
+   */
+  private moteurCoupe(brut: Brut): boolean | null {
+    const explicite = booleen(premier(brut, 'engine.blocked.status'))
+    if (explicite !== null) return explicite
+
+    const masque = nombre(premier(brut, 'vehicle.state.bitmask'))
+    if (masque === null) return null
+    return (masque & FlespiFrameParser.MASQUE_COUPURE_MOTEUR) === 0
+  }
+
+  /** `flespi/message/gw/devices/8958982` → 8958982 */
+  static deviceIdFromTopic(topic?: string): number | null {
+    const m = topic?.match(/(?:^|\/)gw\/devices\/(\d+)(?:\/|$)/)
+    return m ? Number(m[1]) : null
   }
 }

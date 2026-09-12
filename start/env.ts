@@ -62,15 +62,25 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   // ---------------------------------------------------------- flespi
   FLESPI_TOKEN: Env.schema.string.optional(),
-  FLESPI_MQTT_HOST: Env.schema.string.optional(),
-  FLESPI_MQTT_PORT: Env.schema.number.optional(),
-  FLESPI_MQTT_TLS: Env.schema.boolean.optional(),
-  FLESPI_MQTT_CLIENT_ID: Env.schema.string.optional(),
-  FLESPI_WEBHOOK_SECRET: Env.schema.string.optional(),
   FLESPI_BASE_URL: Env.schema.string.optional(),
   FLESPI_TIMEOUT_MS: Env.schema.number.optional(),
   FLESPI_CHANNEL_ID: Env.schema.number.optional(),
+  FLESPI_PROTOCOL_NAME: Env.schema.string.optional(),
+  FLESPI_DEVICE_TYPE: Env.schema.string.optional(),
+  /** @deprecated remplacé par FLESPI_DEVICE_TYPE (accepte id, name ou title). */
   FLESPI_DEVICE_TYPE_ID: Env.schema.string.optional(),
+  FLESPI_DEVICE_MESSAGES_TTL: Env.schema.number.optional(),
+  FLESPI_COMMAND_TTL_SECONDS: Env.schema.number.optional(),
+  FLESPI_COMMAND_MAX_ATTEMPTS: Env.schema.number.optional(),
+  FLESPI_MQTT_HOST: Env.schema.string.optional(),
+  FLESPI_MQTT_PORT: Env.schema.number.optional(),
+  FLESPI_MQTT_TLS: Env.schema.boolean.optional(),
+  FLESPI_MQTT_TOKEN: Env.schema.string.optional(),
+  FLESPI_MQTT_CLIENT_ID: Env.schema.string.optional(),
+  FLESPI_MQTT_TOPICS: Env.schema.string.optional(),
+  FLESPI_MQTT_SHARE_GROUP: Env.schema.string.optional(),
+  FLESPI_MQTT_SESSION_EXPIRY: Env.schema.number.optional(),
+  FLESPI_WEBHOOK_SECRET: Env.schema.string.optional(),
 
   // ---------------------------------------------------------- broker mqtt
   MQTT_HOST: Env.schema.string.optional({ format: 'host' }),

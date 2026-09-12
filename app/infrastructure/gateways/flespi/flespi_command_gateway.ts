@@ -1,22 +1,47 @@
 import logger from '@adonisjs/core/services/logger'
+import type { FlespiClient } from '#infrastructure/gateways/flespi/flespi_client'
+import type { DeviceCommandGateway } from '#application/security/ports'
+import type {
+  FlespiCommandDefinition,
+  FlespiCommandResult,
+  FlespiQueuedCommand,
+} from '#infrastructure/gateways/flespi/flespi_types'
+import { validateAgainstSchema } from '#infrastructure/gateways/flespi/flespi_schema_validator'
 
 /**
  * =========================================================================
  *  PASSERELLE DE COMMANDES FLESPI — Micodus MV730
  * =========================================================================
  *
- * SEUL endroit du projet qui connaît les codes constructeur. Le domaine parle
- * de « couper le moteur », jamais de « S20 1,1 ».
+ * ✗ AVANT : POST /gw/devices/{id}/commands   { command_code, data }
+ *   → n'existe pas sous cette forme : flespi attend un TABLEAU de
+ *     { name, properties }. Le code constructeur n'est pas le nom de commande.
  *
- * Table établie d'après la documentation Flespi/Micodus rassemblée par SISBM
- * (Jalon 2, section IV). Ces codes ne sont PAS devinables : `request_status`
- * est `R1` et non `S71`, `reboot` est `R2` et non `S02`. Toute modification
- * doit être adossée à la documentation, jamais à une déduction.
+ * ✓ APRÈS — deux modes, deux endpoints flespi :
  *
- * ⚠ Les codes `G1` / `G2` (géofences embarquées) sont donnés « à adapter selon
- * la doc exacte » dans la source. À valider sur boîtier réel en Phase 2 avant
- * tout usage en production. Le géorepérage de la plateforme est de toute façon
- * calculé côté serveur avec PostGIS et ne dépend pas de ces commandes.
+ *   FILE D'ATTENTE (défaut)  POST /gw/devices/{id}/commands-queue
+ *     [{ name, properties, ttl, max_attempts, priority }]
+ *     → la commande attend que le boîtier soit connecté (jusqu'à `ttl`
+ *       secondes, `max_attempts` essais). Adapté à un traceur qui coupe son
+ *       GPRS à l'arrêt (mode veille / stop_mode du MV730).
+ *     Résultat plus tard : GET /gw/devices/{id}/commands-result
+ *
+ *   INSTANTANÉ               POST /gw/devices/{id}/commands
+ *     [{ name, properties, timeout }]
+ *     → échoue immédiatement si le boîtier n'est pas connecté
+ *       (« device not connected »). Réservé au diagnostic interactif.
+ *
+ * Commandes Micodus MV730 : flespi les expose via la commande générique
+ * `custom`, dont le schéma pour MV33/MV710/MV720/MV730/MV740/MV790G est
+ * `{ command_code, data }` — exemple officiel (flespi.com/protocols/micodus) :
+ *
+ *     { "name": "custom", "properties": { "command_code": "S20", "data": "1,1" } }
+ *     → coupure huile + alimentation
+ *
+ * Seul S20 est confirmé par la documentation flespi. Les autres codes
+ * proviennent du support SISBM et sont marqués `verified: false` : à valider
+ * sur boîtier réel (GET /api/v1/devices/:id/flespi/commands renvoie le
+ * schéma exact que flespi accepte pour CE boîtier).
  */
 
 export type FlespiCommandName =
@@ -36,167 +61,380 @@ export type FlespiCommandName =
   | 'remove_geofence'
   | 'set_apn'
 
+/** Valeurs autorisées par la contrainte `ck_device_commands_type`. */
+export type CommandType =
+  'engine_cut' | 'engine_restore' | 'locate' | 'reboot' | 'set_interval' | 'custom'
+
 interface Definition {
+  /** Code constructeur Micodus, transmis dans `properties.command_code`. */
   code: string
   /** Charge utile fixe, ou `null` si elle dépend des paramètres. */
   data: string | null
   /** Une commande sensible exige une habilitation dédiée et un motif tracé. */
   sensitive: boolean
+  /** Confirmé par la documentation flespi / un test sur boîtier réel. */
+  verified: boolean
+  commandType: CommandType
   label: string
 }
 
 export const FLESPI_COMMANDS: Record<FlespiCommandName, Definition> = {
-  // ---- contrôle moteur / carburant
-  cut_engine: { code: 'S20', data: '1,1', sensitive: true, label: 'Couper huile et alimentation' },
+  // ---- contrôle moteur / carburant (exemple officiel flespi)
+  cut_engine: {
+    code: 'S20',
+    data: '1,1',
+    sensitive: true,
+    verified: true,
+    commandType: 'engine_cut',
+    label: 'Couper huile et alimentation',
+  },
   restore_engine: {
     code: 'S20',
     data: '0,0',
     sensitive: true,
+    verified: true,
+    commandType: 'engine_restore',
     label: 'Rétablir huile et alimentation',
   },
 
   // ---- alarme embarquée
-  arm: { code: 'S10', data: '1', sensitive: false, label: "Armer l'alarme" },
-  disarm: { code: 'S10', data: '0', sensitive: false, label: "Désarmer l'alarme" },
+  arm: {
+    code: 'S10',
+    data: '1',
+    sensitive: false,
+    verified: false,
+    commandType: 'custom',
+    label: "Armer l'alarme",
+  },
+  disarm: {
+    code: 'S10',
+    data: '0',
+    sensitive: false,
+    verified: false,
+    commandType: 'custom',
+    label: "Désarmer l'alarme",
+  },
 
-  // ---- sortie auxiliaire (sirène, buzzer, relais additionnel)
-  set_output: { code: 'S11', data: null, sensitive: true, label: 'Piloter une sortie' },
+  // ---- sortie auxiliaire
+  set_output: {
+    code: 'S11',
+    data: null,
+    sensitive: true,
+    verified: false,
+    commandType: 'custom',
+    label: 'Piloter une sortie',
+  },
 
   // ---- configuration du boîtier
   set_admin_number: {
     code: 'A1',
     data: null,
     sensitive: true,
+    verified: false,
+    commandType: 'custom',
     label: 'Définir le numéro administrateur',
   },
   change_password: {
     code: 'B1',
     data: null,
     sensitive: true,
+    verified: false,
+    commandType: 'custom',
     label: 'Changer le mot de passe boîtier',
   },
   reset_password: {
     code: 'B2',
     data: null,
     sensitive: true,
+    verified: false,
+    commandType: 'custom',
     label: 'Réinitialiser le mot de passe',
   },
-  set_apn: { code: 'C1', data: null, sensitive: true, label: "Configurer l'APN" },
+  set_apn: {
+    code: 'C1',
+    data: null,
+    sensitive: true,
+    verified: false,
+    commandType: 'custom',
+    label: "Configurer l'APN",
+  },
 
   // ---- diagnostic
-  request_status: { code: 'R1', data: '', sensitive: false, label: "Demander un rapport d'état" },
-  reboot: { code: 'R2', data: '', sensitive: false, label: 'Redémarrer le boîtier' },
+  request_status: {
+    code: 'R1',
+    data: '',
+    sensitive: false,
+    verified: false,
+    commandType: 'locate',
+    label: "Demander un rapport d'état",
+  },
+  reboot: {
+    code: 'R2',
+    data: '',
+    sensitive: false,
+    verified: false,
+    commandType: 'reboot',
+    label: 'Redémarrer le boîtier',
+  },
 
   // ---- rythme de reporting
-  start_tracking: { code: 'T1', data: '1', sensitive: false, label: 'Activer le suivi renforcé' },
-  stop_tracking: { code: 'T1', data: '0', sensitive: false, label: 'Désactiver le suivi renforcé' },
+  start_tracking: {
+    code: 'T1',
+    data: '1',
+    sensitive: false,
+    verified: false,
+    commandType: 'set_interval',
+    label: 'Activer le suivi renforcé',
+  },
+  stop_tracking: {
+    code: 'T1',
+    data: '0',
+    sensitive: false,
+    verified: false,
+    commandType: 'set_interval',
+    label: 'Désactiver le suivi renforcé',
+  },
 
-  // ---- géofences embarquées (à valider sur boîtier réel)
+  // ---- géofences embarquées
   add_geofence: {
     code: 'G1',
     data: null,
     sensitive: false,
+    verified: false,
+    commandType: 'custom',
     label: 'Ajouter une géofence embarquée',
   },
   remove_geofence: {
     code: 'G2',
     data: null,
     sensitive: false,
+    verified: false,
+    commandType: 'custom',
     label: 'Supprimer une géofence embarquée',
   },
 }
 
-export interface FlespiGatewayConfig {
-  token: string
-  baseUrl: string
-  timeoutMs: number
+/** Commande au format flespi. */
+export interface FlespiCommand {
+  name: string
+  properties: Record<string, unknown>
 }
 
-export interface CommandResult {
+export interface QueueOptions {
+  /** Durée de vie en file, 60 à 2 592 000 s. */
+  ttl?: number
+  /** Nombre d'essais de remise (défaut flespi : 10). */
+  maxAttempts?: number
+  priority?: number
+}
+
+export interface SendResult {
+  mode: 'queue' | 'instant'
   providerCommandId: string
-  commandCode: string
-  data: string
+  command: FlespiCommand
+  /** Instantané : réponse du boîtier. File : null. */
+  executed: boolean
+  response: unknown
+  expiresAt: Date | null
 }
 
-/** Port de sortie vers la passerelle télématique. */
-export interface FlespiCommandGateway {
-  send(flespiDeviceId: number, command: FlespiCommandName, data?: string): Promise<CommandResult>
+/**
+ * Traduit une commande métier en commande flespi.
+ * Lève une erreur si une charge utile variable est absente : envoyer
+ * `set_apn` avec une chaîne vide rendrait le boîtier injoignable.
+ */
+export function buildBusinessCommand(
+  command: FlespiCommandName,
+  data?: string | null
+): FlespiCommand {
+  const def = FLESPI_COMMANDS[command]
+  if (!def) throw new Error(`Commande inconnue : ${command}`)
+  const charge = def.data ?? data
+  if (charge === undefined || charge === null || (def.data === null && charge.trim() === '')) {
+    throw new Error(`La commande ${command} exige un paramètre « data »`)
+  }
+  return { name: 'custom', properties: { command_code: def.code, data: charge } }
 }
 
-export class HttpFlespiCommandGateway implements FlespiCommandGateway {
-  constructor(private readonly config: FlespiGatewayConfig) {}
+/**
+ * Contrôle une commande contre le catalogue RÉEL du boîtier.
+ * Retourne la liste des erreurs (vide = valide).
+ */
+export function checkAgainstCatalog(
+  cmd: FlespiCommand,
+  catalogue: FlespiCommandDefinition[]
+): string[] {
+  if (catalogue.length === 0) return [] // catalogue indisponible : flespi tranchera
+  const def = catalogue.find((c) => c.name === cmd.name)
+  if (!def) {
+    return [
+      `La commande « ${cmd.name} » n'existe pas pour ce type de boîtier. ` +
+        `Disponibles : ${catalogue.map((c) => c.name).join(', ')}`,
+    ]
+  }
+  return validateAgainstSchema(cmd.properties, def.schema)
+}
 
-  async send(
+export class HttpFlespiCommandGateway {
+  constructor(private readonly client: FlespiClient) {}
+
+  /** Mise en file : la commande part dès que le boîtier est connecté. */
+  async queue(
     flespiDeviceId: number,
-    command: FlespiCommandName,
-    data?: string
-  ): Promise<CommandResult> {
-    const def = FLESPI_COMMANDS[command]
-    if (!def) throw new Error(`Commande inconnue : ${command}`)
+    cmd: FlespiCommand,
+    opts: QueueOptions = {}
+  ): Promise<SendResult> {
+    const item: Record<string, unknown> = { name: cmd.name, properties: cmd.properties }
+    if (opts.ttl !== undefined) item.ttl = Math.min(Math.max(opts.ttl, 60), 2_592_000)
+    if (opts.maxAttempts !== undefined) item.max_attempts = opts.maxAttempts
+    if (opts.priority !== undefined) item.priority = opts.priority
 
-    /**
-     * Une commande à charge utile variable ne part jamais sans paramètre :
-     * envoyer `set_apn` avec une chaîne vide reconfigurerait le boîtier avec
-     * un APN nul et le rendrait injoignable — irrécupérable à distance.
-     */
-    const charge = def.data ?? data
-    if (charge === undefined || charge === null) {
-      throw new Error(`La commande ${command} exige un paramètre « data »`)
-    }
-
-    const url = `${this.config.baseUrl}/gw/devices/${flespiDeviceId}/commands`
-    const reponse = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `FlespiToken ${this.config.token}`,
-      },
-      body: JSON.stringify({ command_code: def.code, data: charge }),
-      // Délai borné : un appel bloqué retiendrait une transaction ouverte.
-      signal: AbortSignal.timeout(this.config.timeoutMs),
-    })
-
-    if (!reponse.ok) {
-      const detail = await reponse.text().catch(() => '')
-      logger.error(
-        { flespiDeviceId, command, code: def.code, status: reponse.status, detail },
-        '[flespi] commande refusée'
-      )
-      throw new Error(`Flespi a refusé « ${def.label} » (HTTP ${reponse.status})`)
-    }
-
-    const json = (await reponse.json().catch(() => ({}))) as { result?: Array<{ id?: number }> }
-    const providerCommandId = String(json.result?.[0]?.id ?? `${def.code}-${Date.now()}`)
+    const r = await this.client.first<FlespiQueuedCommand>(
+      'POST',
+      `/gw/devices/${flespiDeviceId}/commands-queue`,
+      { body: [item] }
+    )
+    if (!r?.id) throw new Error("Flespi n'a pas retourné d'identifiant de commande")
 
     logger.info(
-      { flespiDeviceId, command, code: def.code, providerCommandId },
-      '[flespi] commande transmise'
+      { flespiDeviceId, name: cmd.name, id: r.id, expires: r.expires },
+      '[flespi] commande en file'
     )
-    return { providerCommandId, commandCode: def.code, data: charge }
+    return {
+      mode: 'queue',
+      providerCommandId: String(r.id),
+      command: cmd,
+      executed: Boolean(r.executed),
+      response: r.response ?? null,
+      expiresAt: r.expires ? new Date(r.expires * 1000) : null,
+    }
+  }
+
+  /** Exécution immédiate : échoue si le boîtier n'est pas connecté. */
+  async execute(flespiDeviceId: number, cmd: FlespiCommand, timeoutS = 30): Promise<SendResult> {
+    const r = await this.client.first<FlespiCommandResult>(
+      'POST',
+      `/gw/devices/${flespiDeviceId}/commands`,
+      {
+        body: [
+          {
+            name: cmd.name,
+            properties: cmd.properties,
+            timeout: Math.min(Math.max(timeoutS, 5), 60),
+          },
+        ],
+      }
+    )
+    if (!r) throw new Error("Flespi n'a pas retourné de résultat de commande")
+    logger.info(
+      { flespiDeviceId, name: cmd.name, id: r.id, executed: r.executed },
+      '[flespi] commande exécutée'
+    )
+    return {
+      mode: 'instant',
+      providerCommandId: String(r.id),
+      command: cmd,
+      executed: Boolean(r.executed),
+      response: r.response ?? null,
+      expiresAt: null,
+    }
+  }
+
+  /** Résultats des commandes exécutées (acquittées ou refusées par le boîtier). */
+  async results(flespiDeviceId: number): Promise<FlespiCommandResult[]> {
+    const env = await this.client.request<FlespiCommandResult>(
+      'GET',
+      `/gw/devices/${flespiDeviceId}/commands-result`
+    )
+    return env.result
+  }
+
+  /** Commandes encore en file chez flespi. */
+  async pending(flespiDeviceId: number): Promise<FlespiQueuedCommand[]> {
+    const env = await this.client.request<FlespiQueuedCommand>(
+      'GET',
+      `/gw/devices/${flespiDeviceId}/commands-queue/all`
+    )
+    return env.result
+  }
+
+  /** Retire une commande de la file (avant qu'elle ne parte). */
+  async cancel(flespiDeviceId: number, providerCommandId: string): Promise<void> {
+    await this.client.request(
+      'DELETE',
+      `/gw/devices/${flespiDeviceId}/commands-queue/${providerCommandId}`
+    )
   }
 }
 
 /**
- * Passerelle factice.
+ * Adaptateur du port applicatif `DeviceCommandGateway` (contexte sécurité).
  *
- * Permet d'exercer toute la chaîne — API, habilitations, journal d'audit,
- * machine à états des commandes — sans jeton Flespi ni boîtier réel.
+ * Prêt pour le Jalon 3 : l'immobilisation validée appellera `sendEngineCut`,
+ * qui met en file `custom { S20, "1,1" }` avec un TTL court — une coupure
+ * moteur exécutée une heure après la décision n'a plus de sens.
  */
-export class FakeFlespiCommandGateway implements FlespiCommandGateway {
-  readonly sent: Array<{ deviceId: number; command: string; code: string; data: string }> = []
+export class FlespiDeviceCommandGateway implements DeviceCommandGateway {
+  constructor(
+    private readonly gateway: HttpFlespiCommandGateway,
+    private readonly ttlSeconds = 900
+  ) {}
 
-  async send(
-    flespiDeviceId: number,
-    command: FlespiCommandName,
-    data?: string
-  ): Promise<CommandResult> {
-    const def = FLESPI_COMMANDS[command]
-    const charge = def.data ?? data ?? ''
-    this.sent.push({ deviceId: flespiDeviceId, command, code: def.code, data: charge })
+  async sendEngineCut(input: {
+    deviceId: string
+    externalDeviceId: string | null
+    commandId: string
+  }) {
+    return this.envoyer(input.externalDeviceId, 'cut_engine')
+  }
+
+  async sendEngineRestore(input: {
+    deviceId: string
+    externalDeviceId: string | null
+    commandId: string
+  }) {
+    return this.envoyer(input.externalDeviceId, 'restore_engine')
+  }
+
+  private async envoyer(externalDeviceId: string | null, commande: FlespiCommandName) {
+    if (!externalDeviceId) throw new Error('Boîtier non rattaché à flespi : commande impossible')
+    const r = await this.gateway.queue(Number(externalDeviceId), buildBusinessCommand(commande), {
+      ttl: this.ttlSeconds,
+      maxAttempts: 3,
+      priority: 10,
+    })
+    return { providerCommandId: r.providerCommandId }
+  }
+}
+
+/**
+ * Passerelle factice : exerce toute la chaîne (API, habilitations, audit,
+ * machine à états) sans jeton flespi ni boîtier réel.
+ */
+export class FakeFlespiCommandGateway {
+  readonly sent: Array<{ deviceId: number; command: FlespiCommand; mode: 'queue' | 'instant' }> = []
+
+  async queue(flespiDeviceId: number, cmd: FlespiCommand): Promise<SendResult> {
+    this.sent.push({ deviceId: flespiDeviceId, command: cmd, mode: 'queue' })
     return {
-      providerCommandId: `fake-${def.code}-${this.sent.length}`,
-      commandCode: def.code,
-      data: charge,
+      mode: 'queue',
+      providerCommandId: `fake-${this.sent.length}`,
+      command: cmd,
+      executed: false,
+      response: null,
+      expiresAt: null,
+    }
+  }
+
+  async execute(flespiDeviceId: number, cmd: FlespiCommand): Promise<SendResult> {
+    this.sent.push({ deviceId: flespiDeviceId, command: cmd, mode: 'instant' })
+    return {
+      mode: 'instant',
+      providerCommandId: `fake-${this.sent.length}`,
+      command: cmd,
+      executed: true,
+      response: 'OK',
+      expiresAt: null,
     }
   }
 }

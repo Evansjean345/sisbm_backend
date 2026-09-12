@@ -45,17 +45,48 @@ const sisbmConfig = {
     maxPositionAgeSeconds: env.get('IMMOBILIZATION_MAX_POSITION_AGE_SECONDS', 120),
   },
 
-  /** Passerelle télématique. */
+  /**
+   * Passerelle télématique flespi.
+   *
+   * `deviceType` accepte l'id numérique, le `name` ou le `title` flespi
+   * (« Micodus MV730 ») : il est résolu DANS le protocole du canal, ce qui
+   * interdit de créer un device d'un autre protocole que celui du canal.
+   */
   flespi: {
     token: env.get('FLESPI_TOKEN', ''),
     baseUrl: env.get('FLESPI_BASE_URL', 'https://flespi.io'),
     timeoutMs: env.get('FLESPI_TIMEOUT_MS', 10000),
+    /** Canal micodus de la flotte (ex. 1442013). 0 = non configuré. */
     channelId: env.get('FLESPI_CHANNEL_ID', 0),
-    deviceTypeId: env.get('FLESPI_DEVICE_TYPE_ID', 'Micodus MV730'),
+    protocolName: env.get('FLESPI_PROTOCOL_NAME', 'micodus'),
+    deviceType: env.get('FLESPI_DEVICE_TYPE', env.get('FLESPI_DEVICE_TYPE_ID', 'Micodus MV730')),
+    /** Rétention des messages dans le device flespi, en secondes (défaut flespi : 1 an). */
+    deviceMessagesTtl: env.get('FLESPI_DEVICE_MESSAGES_TTL', 31536000),
+
+    /** Commandes mises en file : durée de vie et nombre d'essais de remise. */
+    commandTtlSeconds: env.get('FLESPI_COMMAND_TTL_SECONDS', 3600),
+    commandMaxAttempts: env.get('FLESPI_COMMAND_MAX_ATTEMPTS', 5),
+
+    /**
+     * Broker MQTT flespi. Authentification : username = jeton flespi,
+     * mot de passe vide. Utiliser de préférence un jeton DÉDIÉ, restreint
+     * par ACL aux topics `flespi/message/gw/devices/#` en lecture.
+     */
     mqttHost: env.get('FLESPI_MQTT_HOST', 'mqtt.flespi.io'),
     mqttPort: env.get('FLESPI_MQTT_PORT', 8883),
     mqttTls: env.get('FLESPI_MQTT_TLS', true),
+    mqttToken: env.get('FLESPI_MQTT_TOKEN', '') || env.get('FLESPI_TOKEN', ''),
+    /** Identifiant STABLE : une session persistante est attachée au clientId. */
     clientId: env.get('FLESPI_MQTT_CLIENT_ID', 'sisbm-core'),
+    topics: env
+      .get('FLESPI_MQTT_TOPICS', 'flespi/message/gw/devices/+')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+    /** Groupe de souscription partagée ($share/<groupe>/…) pour plusieurs workers. */
+    shareGroup: env.get('FLESPI_MQTT_SHARE_GROUP', ''),
+    /** Rétention de la session côté broker pendant une coupure, en secondes. */
+    sessionExpirySeconds: env.get('FLESPI_MQTT_SESSION_EXPIRY', 86400),
     webhookSecret: env.get('FLESPI_WEBHOOK_SECRET', ''),
   },
 

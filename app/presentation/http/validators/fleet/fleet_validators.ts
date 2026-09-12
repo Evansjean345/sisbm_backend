@@ -119,15 +119,62 @@ export const createDeviceValidator = vine.compile(
     simOperator: vine.string().trim().maxLength(40).optional(),
     flespiDeviceId: vine.number().min(1).optional(),
     flespiChannelId: vine.number().min(1).optional(),
-    flespiIdent: vine.string().trim().maxLength(30).optional(),
+    /**
+     * Ident EXACT attendu par flespi, s'il est connu (lu via
+     * GET /api/v1/flespi/channels/:id/idents). Prioritaire sur `terminalId`.
+     */
+    flespiIdent: vine
+      .string()
+      .trim()
+      .regex(/^[0-9A-Za-z]{4,30}$/)
+      .optional(),
+    /**
+     * ID constructeur imprimé sur l'étiquette (Micodus : champ « ID »).
+     * Pour le protocole micodus, l'ident flespi = « 0 » + terminalId.
+     */
+    terminalId: vine
+      .string()
+      .trim()
+      .regex(/^\d{6,20}$/)
+      .optional(),
     status: vine.enum(DEVICE_STATUS).optional(),
     notes: vine.string().trim().maxLength(500).optional(),
     /**
-     * Crée aussi le device chez Flespi. Exige `flespiChannelId`.
-     * Laisser à `false` pour préparer un parc avant d'avoir le canal.
+     * Crée aussi le device chez flespi, sur le canal `flespiChannelId`
+     * (défaut : FLESPI_CHANNEL_ID).
      */
     syncFlespi: vine.boolean().optional(),
+    /** Nom affiché chez flespi (défaut : « <modèle> <IMEI> »). */
+    name: vine.string().trim().minLength(2).maxLength(255).optional(),
+    /**
+     * Type de boîtier flespi : id numérique, `name` ou `title`
+     * (défaut : FLESPI_DEVICE_TYPE = « Micodus MV730 »). Résolu DANS le
+     * protocole du canal : un type d'un autre protocole est refusé.
+     */
+    flespiDeviceType: vine.string().trim().maxLength(60).optional(),
+    /** @deprecated alias de `flespiDeviceType` */
     flespiDeviceTypeId: vine.string().trim().maxLength(60).optional(),
+    /** Si un device flespi porte déjà cet ident, le rattacher au lieu d'échouer. */
+    linkExisting: vine.boolean().optional(),
+  })
+)
+
+export const syncDeviceFlespiValidator = vine.compile(
+  vine.object({
+    flespiChannelId: vine.number().min(1).optional(),
+    flespiIdent: vine
+      .string()
+      .trim()
+      .regex(/^[0-9A-Za-z]{4,30}$/)
+      .optional(),
+    terminalId: vine
+      .string()
+      .trim()
+      .regex(/^\d{6,20}$/)
+      .optional(),
+    name: vine.string().trim().minLength(2).maxLength(255).optional(),
+    flespiDeviceType: vine.string().trim().maxLength(60).optional(),
+    linkExisting: vine.boolean().optional(),
   })
 )
 
@@ -143,10 +190,20 @@ export const updateDeviceValidator = vine.compile(
       .regex(/^\+[1-9]\d{7,14}$/)
       .optional(),
     simOperator: vine.string().trim().maxLength(40).optional(),
-    flespiDeviceId: vine.number().min(1).optional(),
-    flespiChannelId: vine.number().min(1).optional(),
+    /**
+     * Rattachement flespi : modifiable UNIQUEMENT via POST /devices/:id/flespi/sync,
+     * qui vérifie l'existence et le protocole du device chez flespi.
+     */
     status: vine.enum(DEVICE_STATUS).optional(),
     notes: vine.string().trim().maxLength(500).optional(),
+    /** Changer l'ident est répercuté chez flespi (le boîtier doit émettre le nouveau). */
+    flespiIdent: vine
+      .string()
+      .trim()
+      .regex(/^[0-9A-Za-z]{4,30}$/)
+      .optional(),
+    /** Nom affiché chez flespi. */
+    name: vine.string().trim().minLength(2).maxLength(255).optional(),
   })
 )
 

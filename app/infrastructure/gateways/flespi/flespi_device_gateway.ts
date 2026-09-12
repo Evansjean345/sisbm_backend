@@ -1,159 +1,228 @@
 import logger from '@adonisjs/core/services/logger'
-import type { FlespiGatewayConfig } from '#infrastructure/gateways/flespi/flespi_command_gateway'
-import { DeviceIdent } from '#domain/telemetry/value_objects'
+import type { FlespiClient } from '#infrastructure/gateways/flespi/flespi_client'
+import { nettoyer, type LogQuery } from '#infrastructure/gateways/flespi/flespi_channel_gateway'
+import type {
+  FlespiCommandDefinition,
+  FlespiDevice,
+  FlespiLog,
+  FlespiMessage,
+} from '#infrastructure/gateways/flespi/flespi_types'
 
 /**
  * =========================================================================
- *  PROVISIONNEMENT FLESPI — cycle de vie des devices
+ *  PASSERELLE DEVICES FLESPI — cycle de vie des boîtiers
  * =========================================================================
  *
- * Le CRUD de nos boîtiers doit rester synchronisé avec Flespi : un boîtier
- * créé chez nous mais absent de Flespi ne remontera jamais de position.
+ * Corrections par rapport à la version précédente (vérifiées sur l'API) :
  *
- * ⚠ Convention Micodus : Flespi exige un `0` DEVANT l'IMEI dans le champ
- * `ident`. Notre base ne stocke que l'IMEI à 15 chiffres ; le préfixe est
- * ajouté ici, à la frontière. Sans cette normalisation, un même boîtier
- * existerait sous deux identités selon le point d'entrée.
+ *  ✗ AVANT  POST /gw/devices  { channel_id, ident, device_type_id: "Micodus MV730" }
+ *  ✓ APRÈS  POST /gw/devices  [ { name, device_type_id: <number>,
+ *                                 configuration: { ident, phone?, settings_polling? } } ]
+ *
+ *    - le corps est un TABLEAU ;
+ *    - `ident` vit dans `configuration`, pas à la racine ;
+ *    - `device_type_id` est NUMÉRIQUE (le libellé est résolu par
+ *      FlespiProtocolGateway) ;
+ *    - il n'existe PAS de `channel_id` sur un device : le rattachement se fait
+ *      par le protocole du type + l'ident.
+ *
+ *  ✗ AVANT  GET /messages?limit=1&reverse=true   (paramètres ignorés par flespi)
+ *  ✓ APRÈS  GET /messages?data={"count":1,"reverse":true}
  */
 
-export interface FlespiDevice {
-  id: number
+export interface CreateDeviceInput {
+  name: string
+  deviceTypeId: number
   ident: string
-  channelId: number
-  deviceTypeId: string | number
+  /** Numéro de la SIM (format +225…) ou ICCID — requis pour les commandes par SMS. */
+  phone?: string | null
+  messagesTtl?: number
+  settingsPolling?: 'never' | 'once' | 'daily' | 'weekly' | 'monthly'
+  enabled?: boolean
 }
 
-export interface FlespiMessage {
-  [cle: string]: unknown
+export interface UpdateDeviceInput {
+  name?: string
+  enabled?: boolean
+  ident?: string
+  phone?: string | null
+  settingsPolling?: 'never' | 'once' | 'daily' | 'weekly' | 'monthly'
+  messagesTtl?: number
+}
+
+export interface DeviceMessagesQuery {
+  /** Horodatages en SECONDES. */
+  from?: number
+  to?: number
+  count?: number
+  reverse?: boolean
+  fields?: string
+  filter?: string
+}
+
+export interface TelemetryValue {
+  value: unknown
+  ts: number
 }
 
 export class FlespiDeviceGateway {
-  constructor(private readonly config: FlespiGatewayConfig) {}
+  constructor(private readonly client: FlespiClient) {}
 
-  /**
-   * Préfixe Micodus.
-   *
-   * Délègue à `DeviceIdent` : c'est la SEULE règle de préfixage du projet.
-   * En avoir deux — une conditionnée à la longueur ici, une inconditionnelle
-   * dans l'objet-valeur — produisait `00352…` dès que la valeur portait déjà
-   * le zéro.
-   */
-  static toFlespiIdent(imei: string): string {
-    const ident = DeviceIdent.create(imei)
-    return ident.ok ? ident.value.flespiIdent : imei
+  async create(input: CreateDeviceInput): Promise<FlespiDevice> {
+    const configuration: Record<string, unknown> = { ident: input.ident }
+    if (input.phone) configuration.phone = input.phone
+    if (input.settingsPolling) configuration.settings_polling = input.settingsPolling
+
+    const item: Record<string, unknown> = {
+      name: input.name,
+      device_type_id: input.deviceTypeId,
+      configuration,
+    }
+    if (input.messagesTtl !== undefined) item.messages_ttl = input.messagesTtl
+    if (input.enabled !== undefined) item.enabled = input.enabled
+
+    const device = await this.client.first<FlespiDevice>('POST', '/gw/devices', { body: [item] })
+    if (!device?.id) throw new Error("Flespi n'a pas retourné d'identifiant de device")
+
+    logger.info(
+      {
+        flespiDeviceId: device.id,
+        ident: device.configuration?.ident,
+        protocolId: device.protocol_id,
+      },
+      '[flespi] device créé'
+    )
+    return device
+  }
+
+  async get(flespiDeviceId: number, fields?: string[]): Promise<FlespiDevice | null> {
+    return this.client.item<FlespiDevice>(`/gw/devices/${flespiDeviceId}`, { fields })
+  }
+
+  async list(opts: { limit?: number; offset?: number } = {}): Promise<FlespiDevice[]> {
+    const env = await this.client.request<FlespiDevice>('GET', '/gw/devices/all', {
+      limit: opts.limit,
+      offset: opts.offset,
+    })
+    return env.result
+  }
+
+  /** Recherche par ident — évite de créer un doublon, permet de rattacher un device existant. */
+  async findByIdent(ident: string): Promise<FlespiDevice | null> {
+    const selecteur = encodeURIComponent(`configuration.ident="${ident.replace(/"/g, '')}"`)
+    return this.client.first<FlespiDevice>('GET', `/gw/devices/${selecteur}`)
   }
 
   /**
-   * Crée le device chez Flespi.
-   * L'`id` retourné est à stocker dans `devices.flespi_device_id` : c'est lui,
-   * et non l'IMEI, qui adresse les commandes.
+   * Mise à jour partielle. `configuration` est FUSIONNÉE avec l'existante :
+   * envoyer `{ phone }` seul écraserait l'ident et déconnecterait le boîtier.
    */
-  async create(input: {
-    imei: string
-    channelId: number
-    deviceTypeId: string | number
-  }): Promise<FlespiDevice> {
-    const json = await this.appel<{ result?: Array<Record<string, unknown>> }>(
-      'POST',
-      '/gw/devices',
-      {
-        channel_id: input.channelId,
-        ident: FlespiDeviceGateway.toFlespiIdent(input.imei),
-        device_type_id: input.deviceTypeId,
+  async update(flespiDeviceId: number, input: UpdateDeviceInput): Promise<FlespiDevice> {
+    const corps: Record<string, unknown> = {}
+    if (input.name !== undefined) corps.name = input.name
+    if (input.enabled !== undefined) corps.enabled = input.enabled
+    if (input.messagesTtl !== undefined) corps.messages_ttl = input.messagesTtl
+
+    if (input.ident !== undefined || input.phone !== undefined || input.settingsPolling) {
+      const actuel = await this.get(flespiDeviceId, ['configuration'])
+      if (!actuel) throw new Error(`Device flespi ${flespiDeviceId} introuvable`)
+      const configuration: Record<string, unknown> = { ...(actuel.configuration ?? {}) }
+      if (input.ident !== undefined) configuration.ident = input.ident
+      if (input.phone !== undefined) {
+        if (input.phone) configuration.phone = input.phone
+        else delete configuration.phone
       }
-    )
-
-    const brut = json.result?.[0]
-    if (!brut?.id) {
-      throw new Error("Flespi n'a pas retourné d'identifiant de device")
+      if (input.settingsPolling) configuration.settings_polling = input.settingsPolling
+      corps.configuration = configuration
     }
 
-    const device: FlespiDevice = {
-      id: Number(brut.id),
-      ident: String(brut.ident ?? ''),
-      channelId: Number(brut.channel_id ?? input.channelId),
-      deviceTypeId: (brut.device_type_id as string | number) ?? input.deviceTypeId,
-    }
-    logger.info({ flespiDeviceId: device.id, imei: input.imei }, '[flespi] device créé')
+    const device = await this.client.first<FlespiDevice>('PUT', `/gw/devices/${flespiDeviceId}`, {
+      body: corps,
+    })
+    if (!device) throw new Error(`Device flespi ${flespiDeviceId} introuvable`)
     return device
   }
 
   /**
-   * Suppression chez Flespi.
+   * Suppression chez flespi.
    *
-   * Appelée AVANT la suppression logique côté SISBM : si Flespi échoue, on
-   * n'a pas encore archivé le boîtier et l'opération reste rejouable. L'ordre
-   * inverse laisserait un device orphelin chez Flespi, qui continuerait de
-   * facturer et de publier sur le broker.
+   * Appelée AVANT l'archivage côté SISBM : si flespi échoue, l'opération
+   * reste rejouable. L'ordre inverse laisserait un device orphelin qui
+   * continuerait de consommer le quota et de publier sur le broker.
    */
   async delete(flespiDeviceId: number): Promise<void> {
-    await this.appel('DELETE', `/gw/devices/${flespiDeviceId}`)
+    await this.client.request('DELETE', `/gw/devices/${flespiDeviceId}`)
     logger.info({ flespiDeviceId }, '[flespi] device supprimé')
   }
 
-  /** Dernier message connu — utile au diagnostic d'un boîtier muet. */
+  /** Journal du device : création, modification, connexions, erreurs de décodage. */
+  async logs(flespiDeviceId: number, q: LogQuery = {}): Promise<FlespiLog[]> {
+    const env = await this.client.request<FlespiLog>('GET', `/gw/devices/${flespiDeviceId}/logs`, {
+      data: nettoyer({
+        from: q.from,
+        to: q.to,
+        count: q.count ?? 100,
+        reverse: q.reverse ?? true,
+        filter: q.filter,
+      }),
+    })
+    return env.result
+  }
+
+  /** Dernier message connu — diagnostic d'un boîtier muet. */
   async lastMessage(flespiDeviceId: number): Promise<FlespiMessage | null> {
-    const json = await this.appel<{ result?: FlespiMessage[] }>(
+    const env = await this.client.request<FlespiMessage>(
       'GET',
-      `/gw/devices/${flespiDeviceId}/messages?limit=1&reverse=true`
+      `/gw/devices/${flespiDeviceId}/messages`,
+      { data: { count: 1, reverse: true } }
     )
-    return json.result?.[0] ?? null
+    return env.result[0] ?? null
   }
 
   /**
-   * Historique sur une fenêtre. Flespi horodate en SECONDES.
-   *
-   * À réserver au diagnostic et au rattrapage : la source de vérité pour
-   * l'historique reste notre table `positions`, pas Flespi.
+   * Historique sur une fenêtre. flespi horodate en SECONDES.
+   * Réservé au diagnostic et au rattrapage : la source de vérité reste `positions`.
    */
-  async messages(input: {
-    flespiDeviceId: number
-    from: Date
-    to: Date
-    limit?: number
-  }): Promise<FlespiMessage[]> {
-    const from = Math.floor(input.from.getTime() / 1000)
-    const to = Math.floor(input.to.getTime() / 1000)
-    const limit = Math.min(input.limit ?? 1000, 10_000)
-    const json = await this.appel<{ result?: FlespiMessage[] }>(
+  async messages(flespiDeviceId: number, q: DeviceMessagesQuery = {}): Promise<FlespiMessage[]> {
+    const env = await this.client.request<FlespiMessage>(
       'GET',
-      `/gw/devices/${input.flespiDeviceId}/messages?from=${from}&to=${to}&limit=${limit}`
+      `/gw/devices/${flespiDeviceId}/messages`,
+      {
+        data: nettoyer({
+          from: q.from,
+          to: q.to,
+          count: Math.min(q.count ?? 1000, 10_000),
+          reverse: q.reverse,
+          fields: q.fields,
+          filter: q.filter,
+        }),
+      }
     )
-    return json.result ?? []
+    return env.result
   }
 
-  /** Vérifie la validité du jeton et l'accès au canal — à lancer au démarrage. */
+  /** Dernière valeur connue de chaque paramètre (position, batterie, ignition…). */
+  async telemetry(flespiDeviceId: number): Promise<Record<string, TelemetryValue>> {
+    const r = await this.client.first<{ id: number; telemetry: Record<string, TelemetryValue> }>(
+      'GET',
+      `/gw/devices/${flespiDeviceId}/telemetry/all`
+    )
+    return r?.telemetry ?? {}
+  }
+
+  /** Catalogue des commandes EXACT de ce boîtier, tel que flespi le connaît. */
+  async commandsCatalog(flespiDeviceId: number): Promise<FlespiCommandDefinition[]> {
+    const d = await this.get(flespiDeviceId, ['commands'])
+    return d?.commands ?? []
+  }
+
+  /** Vérifie le jeton et l'accès à l'API — à lancer au démarrage. */
   async healthcheck(): Promise<{ ok: boolean; detail?: string }> {
     try {
-      await this.appel('GET', '/gw/channels/all?fields=id')
+      await this.client.request('GET', '/gw/channels/all', { fields: ['id'] })
       return { ok: true }
     } catch (err) {
       return { ok: false, detail: (err as Error).message }
     }
-  }
-
-  // -------------------------------------------------------------------------
-
-  private async appel<T = unknown>(
-    methode: 'GET' | 'POST' | 'DELETE',
-    chemin: string,
-    corps?: unknown
-  ): Promise<T> {
-    const reponse = await fetch(`${this.config.baseUrl}${chemin}`, {
-      method: methode,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `FlespiToken ${this.config.token}`,
-      },
-      body: corps === undefined ? undefined : JSON.stringify(corps),
-      signal: AbortSignal.timeout(this.config.timeoutMs),
-    })
-
-    if (!reponse.ok) {
-      const detail = await reponse.text().catch(() => '')
-      logger.error({ methode, chemin, status: reponse.status, detail }, '[flespi] appel en échec')
-      throw new Error(`Flespi ${methode} ${chemin} → HTTP ${reponse.status}`)
-    }
-    return (await reponse.json().catch(() => ({}))) as T
   }
 }

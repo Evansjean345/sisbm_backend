@@ -3,6 +3,9 @@ import { type HttpContext, ExceptionHandler } from '@adonisjs/core/http'
 import { errors as vineErrors } from '@vinejs/vine'
 import { errors as authErrors } from '@adonisjs/auth'
 import { DomainError } from '#domain/kernel'
+import { FlespiApiError } from '#infrastructure/gateways/flespi/flespi_client'
+import { FlespiIdentError } from '#infrastructure/gateways/flespi/flespi_ident'
+import { ProvisioningError } from '#infrastructure/gateways/flespi/flespi_provisioning'
 
 /**
  * =========================================================================
@@ -28,6 +31,32 @@ export default class HttpExceptionHandler extends ExceptionHandler {
   async handle(error: unknown, ctx: HttpContext) {
     if (error instanceof DomainError)
       return ctx.response.status(error.httpStatus).send({ error: error.toJSON() })
+
+    /**
+     * Erreur renvoyée par flespi : on relaie le MOTIF flespi (« device not
+     * connected », « ident already exists »…), qui est directement actionnable.
+     */
+    if (error instanceof FlespiApiError) {
+      return ctx.response.status(error.httpStatusForClient).send({
+        error: {
+          code: error.status === 0 ? 'E_FLESPI_NOT_CONFIGURED' : 'E_FLESPI',
+          message: error.reason,
+          details: { flespiStatus: error.status, path: error.path, errors: error.errors },
+        },
+      })
+    }
+
+    if (error instanceof ProvisioningError) {
+      return ctx.response.status(error.httpStatus).send({
+        error: { code: error.code, message: error.message, details: error.details },
+      })
+    }
+
+    if (error instanceof FlespiIdentError) {
+      return ctx.response.status(422).send({
+        error: { code: 'E_FLESPI_IDENT', message: error.message, details: { hint: error.hint } },
+      })
+    }
 
     if (error instanceof vineErrors.E_VALIDATION_ERROR) {
       return ctx.response.status(422).send({

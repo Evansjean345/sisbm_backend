@@ -3,30 +3,33 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 
 /**
  * =========================================================================
- *  node ace sisbm:ingest — worker d'ingestion télémétrie
+ *  node ace sisbm:ingest — worker d'ingestion télémétrie (broker flespi)
  * =========================================================================
  *
  * PROCESSUS SÉPARÉ de l'API. Une rafale de Store & Forward — un boîtier qui
  * rejoue deux heures de trames au sortir d'une zone blanche — ne doit pas
  * dégrader le temps de réponse des tableaux de bord.
  *
- *   node ace sisbm:ingest                    # écoute le broker
- *   node ace sisbm:ingest --dry-run          # analyse sans persister
- *   node ace sisbm:ingest --batch-window=500 # regroupement en millisecondes
+ * Source : mqtt.flespi.io, topic `flespi/message/gw/devices/+` (un message
+ * par publication), authentification par jeton flespi.
+ *
+ *   node ace sisbm:ingest                  # écoute le broker flespi
+ *   node ace sisbm:ingest --dry-run        # analyse et journalise, sans écrire en base
+ *   node ace sisbm:ingest --worker=2       # 2e worker : clientId distinct, souscription partagée
  */
 export default class Ingest extends BaseCommand {
   static commandName = 'sisbm:ingest'
-  static description = 'Consomme le flux MQTT de télémétrie et alimente la base'
+  static description = 'Consomme le flux MQTT flespi et alimente la base'
 
-  // `start` : le conteneur applicatif complet est nécessaire (base, Redis,
-  // configuration). `staysAlive` : la commande ne se termine pas d'elle-même.
   static options: CommandOptions = { startApp: true, staysAlive: true }
 
   @flags.boolean({ description: 'Analyse et journalise sans écrire en base' })
   declare dryRun: boolean
 
-  @flags.number({ description: 'Fenêtre de regroupement des trames, en ms' })
-  declare batchWindow: number
+  @flags.number({
+    description: 'Numéro du worker (clientId distinct, souscription partagée requise)',
+  })
+  declare worker: number
 
   async run() {
     const { default: sisbmConfig } = await import('#config/sisbm')
@@ -50,8 +53,19 @@ export default class Ingest extends BaseCommand {
     const { SystemClock } = await import('#infrastructure/services/clock')
     const { UuidGenerator } = await import('#infrastructure/services/id_generator')
 
-    const mqtt = sisbmConfig.mqtt
-    const fenetre = this.batchWindow ?? 300
+    const flespi = sisbmConfig.flespi
+    if (!flespi.mqttToken) {
+      this.logger.error(
+        'FLESPI_MQTT_TOKEN (ou FLESPI_TOKEN) absent : impossible de se connecter au broker flespi'
+      )
+      this.exitCode = 1
+      return await this.terminate()
+    }
+    if (this.worker && !flespi.shareGroup) {
+      this.logger.warning(
+        'Plusieurs workers sans FLESPI_MQTT_SHARE_GROUP : chacun recevra TOUS les messages (doublons).'
+      )
+    }
 
     const parser = new FlespiFrameParser()
     const ingestion = new IngestTelemetryFrames(
@@ -78,118 +92,80 @@ export default class Ingest extends BaseCommand {
     )
 
     const transport = new MqttTelemetryTransport({
-      host: mqtt.host,
-      port: mqtt.port,
-      tls: mqtt.tls,
-      clientId: `${mqtt.clientId}-${process.pid}`,
-      username: mqtt.username || undefined,
-      password: mqtt.password || undefined,
-      topics: mqtt.topics,
-      qos: mqtt.qos,
-      reconnectPeriodMs: mqtt.reconnectPeriodMs,
-      connectTimeoutMs: mqtt.connectTimeoutMs,
-      maxInflightQueue: mqtt.maxInflightQueue,
+      host: flespi.mqttHost,
+      port: flespi.mqttPort,
+      tls: flespi.mqttTls,
+      // STABLE : c'est lui qui retrouve la session persistante au redémarrage.
+      clientId: this.worker ? `${flespi.clientId}-${this.worker}` : flespi.clientId,
+      username: flespi.mqttToken,
+      password: '',
+      topics: flespi.topics,
+      shareGroup: flespi.shareGroup || undefined,
+      qos: 1,
+      reconnectPeriodMs: sisbmConfig.mqtt.reconnectPeriodMs,
+      connectTimeoutMs: sisbmConfig.mqtt.connectTimeoutMs,
+      receiveMaximum: sisbmConfig.mqtt.maxInflightQueue,
+      sessionExpirySeconds: flespi.sessionExpirySeconds,
     })
 
-    /**
-     * Regroupement temporel.
-     *
-     * Les trames arrivent une par une, mais une rafale en livre des centaines
-     * en quelques millisecondes. Les accumuler sur une courte fenêtre permet
-     * une seule transaction pour tout le lot, au lieu d'une par trame.
-     *
-     * ⚠ La promesse de chaque message n'est résolue QU'APRÈS le vidage du
-     * lot : c'est ce qui retarde l'acquittement MQTT jusqu'après le COMMIT.
-     */
-    let lot: Awaited<ReturnType<typeof parser.parse>> = []
-    let attente: Array<() => void> = []
-    let minuteur: NodeJS.Timeout | null = null
     let traitees = 0
     let persistees = 0
     let rejetees = 0
 
-    const vider = async () => {
-      if (minuteur) {
-        clearTimeout(minuteur)
-        minuteur = null
-      }
-      if (lot.length === 0) {
-        attente.forEach((r) => r())
-        attente = []
-        return
-      }
-
-      const frames = lot
-      const resolveurs = attente
-      lot = []
-      attente = []
-
-      try {
-        if (this.dryRun) {
-          this.logger.info(`[dry-run] ${frames.length} trame(s) analysée(s), non persistées`)
-        } else {
-          const r = await ingestion.execute({ frames })
-          if (r.ok) {
-            traitees += r.value.received
-            persistees += r.value.persisted
-            rejetees += r.value.rejected
-            if (r.value.unknownDevices > 0) {
-              this.logger.warning(
-                `${r.value.unknownDevices} trame(s) de boîtier(s) inconnu(s) — journalisées`
-              )
-            }
-            if (r.value.tripsStarted || r.value.tripsClosed) {
-              this.logger.info(
-                `trajets : ${r.value.tripsStarted} ouvert(s), ${r.value.tripsClosed} clos`
-              )
-            }
-          } else {
-            this.logger.error(`ingestion en échec : ${r.error.code} — ${r.error.message}`)
-          }
-        }
-      } catch (err) {
-        // On NE résout PAS les promesses : sans acquittement, le broker
-        // rejouera les messages. Une base indisponible provoque un retard,
-        // jamais une perte.
-        this.logger.error(`échec de traitement du lot : ${(err as Error).message}`)
-        return
-      }
-
-      resolveurs.forEach((r) => r())
-    }
-
+    /**
+     * Un message MQTT = une transaction. Contrat avec le transport :
+     *  - rendre la main  → message acquitté (y compris trame illisible, déjà journalisée) ;
+     *  - lever           → erreur transitoire (base…), le transport réessaie sans acquitter.
+     */
     await transport.subscribe(async (raw, topic) => {
+      let frames: Awaited<ReturnType<typeof parser.parse>>
       try {
-        lot.push(...parser.parse(raw, topic))
+        frames = parser.parse(raw, topic)
       } catch (err) {
         rejetees += 1
-        if (err instanceof FlespiParseError) {
-          this.logger.warning(`trame illisible sur ${topic} : ${err.detail}`)
-        } else {
-          this.logger.warning(`trame ignorée sur ${topic} : ${(err as Error).message}`)
-        }
+        const detail = err instanceof FlespiParseError ? err.detail : (err as Error).message
+        this.logger.warning(`trame ignorée sur ${topic} : ${detail}`)
         return
       }
 
-      await new Promise<void>((resolve) => {
-        attente.push(resolve)
-        if (!minuteur) minuteur = setTimeout(() => void vider(), fenetre)
-      })
+      if (this.dryRun) {
+        for (const f of frames) {
+          this.logger.info(
+            `[dry-run] ${f.ident} ${f.recordedAt.toISOString()} ${f.latitude},${f.longitude} ` +
+              `${f.speedKph} km/h ign=${f.ignition} sat=${f.satellites}`
+          )
+        }
+        traitees += frames.length
+        return
+      }
+
+      const r = await ingestion.execute({ frames })
+      if (r.ok) {
+        traitees += r.value.received
+        persistees += r.value.persisted
+        rejetees += r.value.rejected
+        if (r.value.unknownDevices > 0) {
+          this.logger.warning(
+            `trame d'un boîtier inconnu (${frames[0]?.ident}) — enregistrer le boîtier avec cet ident`
+          )
+        }
+      } else {
+        // Erreur métier : rejouer ne changerait rien. On journalise et on acquitte.
+        rejetees += frames.length
+        this.logger.error(`ingestion refusée : ${r.error.code} — ${r.error.message}`)
+      }
     })
 
     this.logger.success(
-      `écoute de ${mqtt.topics.join(', ')} sur ${mqtt.host}:${mqtt.port} ` +
-        `(QoS ${mqtt.qos}, fenêtre ${fenetre} ms)`
+      `écoute de ${transport.subscriptions.join(', ')} sur ${flespi.mqttHost}:${flespi.mqttPort} (QoS 1)`
     )
     if (this.dryRun) this.logger.warning('mode dry-run : aucune écriture en base')
 
-    // Bilan périodique — utile pour vérifier que le flux ne s'est pas tari.
     const bilan = setInterval(() => {
-      if (traitees > 0) {
-        this.logger.info(
-          `bilan : ${traitees} reçue(s) · ${persistees} persistée(s) · ${rejetees} rejetée(s)`
-        )
-      }
+      this.logger.info(
+        `bilan : ${transport.received} reçue(s) · ${persistees} persistée(s) · ${rejetees} rejetée(s) · ` +
+          `connecté=${transport.isConnected}`
+      )
     }, 60_000)
     bilan.unref()
 
@@ -201,7 +177,6 @@ export default class Ingest extends BaseCommand {
     const arreter = async (signal: string) => {
       this.logger.info(`${signal} reçu — arrêt en cours`)
       clearInterval(bilan)
-      await vider()
       await transport.disconnect()
       this.logger.success(
         `arrêté. Bilan : ${traitees} reçue(s) · ${persistees} persistée(s) · ${rejetees} rejetée(s)`

@@ -8,6 +8,8 @@ const VehicleController = () => import('#presentation/http/controllers/fleet/veh
 const DeviceController = () => import('#presentation/http/controllers/fleet/device_controller')
 const CommandController = () =>
   import('#presentation/http/controllers/fleet/device_command_controller')
+const FlespiChannelController = () =>
+  import('#presentation/http/controllers/fleet/flespi_channel_controller')
 const ImmobilizationController = () =>
   import('#presentation/http/controllers/security/immobilization_controller')
 
@@ -69,8 +71,43 @@ router
     // ---- diagnostic : interroge FLESPI, pas notre base
     router.get('/devices/:id/telemetry', [DeviceController, 'liveTelemetry'])
     router.get('/devices/:id/telemetry/history', [DeviceController, 'liveHistory'])
+
+    // ---- rattachement flespi du boîtier
+    router.post('/devices/:id/flespi/sync', [DeviceController, 'syncFlespi'])
+    router.get('/devices/:id/flespi', [DeviceController, 'flespiStatus'])
+    router.get('/devices/:id/flespi/logs', [DeviceController, 'flespiLogs'])
+    router.get('/devices/:id/flespi/telemetry', [DeviceController, 'flespiTelemetry'])
+    router.get('/devices/:id/flespi/commands', [CommandController, 'flespiCatalog'])
   })
   .prefix('/api/v1')
+  .use(middleware.auth())
+
+// --------------------------------------------------------------- administration flespi
+/**
+ * Canaux et catalogue flespi. Relais de l'API flespi, protégé par nos
+ * habilitations : le jeton flespi ne quitte jamais le serveur.
+ */
+router
+  .group(() => {
+    router.get('/health', [FlespiChannelController, 'health'])
+
+    router.get('/protocols', [FlespiChannelController, 'protocols'])
+    router.get('/protocols/:protocol/device-types', [FlespiChannelController, 'deviceTypes'])
+    router.get('/protocols/:protocol/device-types/:typeId', [FlespiChannelController, 'deviceType'])
+
+    router.get('/channels', [FlespiChannelController, 'index'])
+    router.post('/channels', [FlespiChannelController, 'store'])
+    router.get('/channels/:id', [FlespiChannelController, 'show']).where('id', /^\d+$/)
+    router.patch('/channels/:id', [FlespiChannelController, 'update']).where('id', /^\d+$/)
+    router.delete('/channels/:id', [FlespiChannelController, 'destroy']).where('id', /^\d+$/)
+    router.get('/channels/:id/logs', [FlespiChannelController, 'logs']).where('id', /^\d+$/)
+    router.get('/channels/:id/messages', [FlespiChannelController, 'messages']).where('id', /^\d+$/)
+    router
+      .get('/channels/:id/connections', [FlespiChannelController, 'connections'])
+      .where('id', /^\d+$/)
+    router.get('/channels/:id/idents', [FlespiChannelController, 'idents']).where('id', /^\d+$/)
+  })
+  .prefix('/api/v1/flespi')
   .use(middleware.auth())
 
 // --------------------------------------------------------------- commandes boîtier
@@ -83,6 +120,14 @@ router
   .group(() => {
     router.get('/devices/:id/commands', [CommandController, 'catalog'])
     router.get('/devices/:id/commands/history', [CommandController, 'history'])
+    router.get('/devices/:id/commands/results', [CommandController, 'results'])
+    router.post('/devices/:id/commands/sync', [CommandController, 'sync'])
+
+    // ---- commande flespi brute, validée contre le catalogue réel du boîtier
+    router.post('/devices/:id/commands/send', [CommandController, 'send'])
+    router
+      .delete('/devices/:id/commands/:commandId', [CommandController, 'cancel'])
+      .where('commandId', /^[0-9a-f-]{36}$/)
 
     // ---- alarme embarquée
     router.post('/devices/:id/commands/arm', [CommandController, 'arm'])
@@ -129,6 +174,15 @@ router
   .group(() => {
     router.post('/security/immobilizations', [ImmobilizationController, 'store'])
     router.post('/security/immobilizations/:id/validation', [ImmobilizationController, 'validate'])
+
+    /**
+     * Émission réelle de la coupure vers le boîtier, après validation.
+     * Soumise à IMMOBILIZATION_ENABLED.
+     */
+    router.post('/security/immobilizations/:id/dispatch', [ImmobilizationController, 'dispatch'])
+
+    /** Rétablissement du moteur : demande et émission en un appel. */
+    router.post('/security/restorations', [ImmobilizationController, 'restore'])
   })
   .prefix('/api/v1')
   .use([middleware.auth(), throttle.sensitive])

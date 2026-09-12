@@ -29,9 +29,9 @@ attendre() {
 attendre "${DB_HOST:-postgres}" "${DB_PORT:-5432}" "PostgreSQL"
 attendre "${REDIS_HOST:-redis}" "${REDIS_PORT:-6379}" "Redis"
 
-# Le worker d'ingestion a besoin du broker ; l'API non.
+# Le worker d'ingestion a besoin du broker flespi ; l'API non.
 case "$*" in
-  *sisbm:ingest*) attendre "${MQTT_HOST:-mosquitto}" "${MQTT_PORT:-1883}" "Mosquitto" ;;
+  *sisbm:ingest*) attendre "${FLESPI_MQTT_HOST:-mqtt.flespi.io}" "${FLESPI_MQTT_PORT:-8883}" "broker MQTT flespi" ;;
 esac
 
 # Les migrations ne sont PAS jouées automatiquement.
