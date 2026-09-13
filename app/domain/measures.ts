@@ -24,7 +24,7 @@ export class InvalidMeasureError extends BusinessRuleViolation {
 // ---------------------------------------------------------------------------
 
 export class Speed extends ValueObject<{ kph: number }> {
-  static readonly MAX_KPH = 400
+  static readonly MAX_KPH = 400 //kilomters per hours
 
   private constructor(kph: number) {
     super({ kph })
@@ -50,6 +50,7 @@ export class Speed extends ValueObject<{ kph: number }> {
     return this.props.kph
   }
 
+  //motor position switch/sensor
   get mps(): number {
     return this.props.kph / 3.6
   }
@@ -71,6 +72,7 @@ export class Speed extends ValueObject<{ kph: number }> {
 // Coordonnées
 // ---------------------------------------------------------------------------
 
+//latitude --nord-sud (+90/-90) ; longitude --est-ouest (+180/-180)
 export class Coordinates extends ValueObject<{ latitude: number; longitude: number }> {
   private constructor(latitude: number, longitude: number) {
     super({ latitude, longitude })
@@ -117,6 +119,7 @@ export class Coordinates extends ValueObject<{ latitude: number; longitude: numb
    * de distance qui comptent — kilométrage d'un trajet, distance à une zone —
    * restent délégués à PostGIS, qui tient compte de l'ellipsoïde.
    */
+  //chemin le plus court entre deux points sur une sphère, en mètres point A à point B
   distanceTo(other: Coordinates): number {
     const R = 6_371_000
     const toRad = (d: number) => (d * Math.PI) / 180
@@ -213,6 +216,9 @@ export class GpsQuality extends ValueObject<{
     return new GpsQuality(input.hdop ?? null, input.satellites ?? null, input.isValidFix ?? true)
   }
 
+  /*Le HDOP (Horizontal Dilution of Precision) est une mesure sans unité utilisée en GPS et GNSS 
+  pour quantifier l'impact de la géométrie 
+  des satellites sur la précision de la position horizontale (latitude et longitude). */
   get hdop(): number | null {
     return this.props.hdop
   }
