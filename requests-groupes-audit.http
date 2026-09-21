@@ -1,0 +1,395 @@
+### =============================================================================
+###  SISBM CORE — Jalon 2 · GROUPES & JOURNAL D'AUDIT
+###  Groupes de véhicules · Groupes de boîtiers · Consultation de audit_logs
+###
+###  Client : VS Code « REST Client » ou JetBrains HTTP Client
+###  Fichier AUTONOME : il ouvre ses propres sessions, il n'a besoin d'aucun
+###  autre fichier. Jouer les requêtes DANS L'ORDRE la première fois — les
+###  variables (@vehicleGroupId, @deviceGroupId…) sont capturées au passage.
+###
+###  Prérequis :
+###      node ace migration:run      (migration 013 : device_groups)
+###      node ace db:seed            (organisation SISBM, 3 véhicules, 3 boîtiers,
+###                                   superadmin@sisbm.ci)
+### =============================================================================
+
+@host = http://127.0.0.1:3336
+@api = {{host}}/api/v1
+
+### Jeu de données du seeder — identifiants stables, réutilisables tels quels.
+@orgSisbm = 11111111-1111-4111-8111-111111111111
+@vehicule1 = aaaaaaaa-0000-4000-8000-000000000001
+@vehicule2 = aaaaaaaa-0000-4000-8000-000000000002
+@vehicule3 = aaaaaaaa-0000-4000-8000-000000000003
+@boitier1 = bbbbbbbb-0000-4000-8000-000000000001
+@boitier2 = bbbbbbbb-0000-4000-8000-000000000002
+@boitier3 = bbbbbbbb-0000-4000-8000-000000000003
+### Identifiant volontairement inexistant : sert aux contrôles de refus.
+@inconnu = aaaaaaaa-0000-4000-8000-00000000ffff
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  0. SESSIONS
+### ═════════════════════════════════════════════════════════════════════════
+
+### Santé du service — à jouer en premier, pour vérifier que l'API répond.
+GET {{host}}/health
+
+### Administrateur de l'organisation SISBM (vehicle:*, device:*, audit:read)
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@sisbm.ci", "password": "Sisbm2026!" }
+
+###
+@token = {{login.response.body.data.token}}
+
+### Exploitant plateforme (joker `*`) — routes /organizations/:id/…
+# @name loginSuper
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "superadmin@sisbm.ci", "password": "SuperAdmin2026!" }
+
+###
+@superToken = {{loginSuper.response.body.data.token}}
+
+### Opérateur (lecture seule) — sert aux contrôles d'habilitation en fin de fichier
+# @name loginOperateur
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "operateur@sisbm.ci", "password": "Sisbm2026!" }
+
+###
+@operateurToken = {{loginOperateur.response.body.data.token}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  1. GROUPES DE VÉHICULES
+###  Habilitations : vehicle:read (lecture) · vehicle:write (écriture)
+### ═════════════════════════════════════════════════════════════════════════
+
+### créer — `name` unique par organisation, `color` au format #RRGGBB
+# @name createVehicleGroup
+POST {{api}}/vehicle-groups
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Flotte Abidjan",
+  "description": "Véhicules du district autonome",
+  "color": "#1D4ED8"
+}
+
+###
+@vehicleGroupId = {{createVehicleGroup.response.body.data.id}}
+
+### lister — chaque ligne porte son effectif (`membersCount`)
+GET {{api}}/vehicle-groups?page=1&perPage=25
+Authorization: Bearer {{token}}
+
+### rechercher par nom
+GET {{api}}/vehicle-groups?search=abidjan
+Authorization: Bearer {{token}}
+
+### consulter — groupe + liste complète des membres
+GET {{api}}/vehicle-groups/{{vehicleGroupId}}
+Authorization: Bearer {{token}}
+
+### modifier
+PATCH {{api}}/vehicle-groups/{{vehicleGroupId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Flotte Abidjan Nord", "description": "Secteur nord", "color": "#B91C1C" }
+
+
+### ──────────────────────── affectation des véhicules ────────────────────────
+
+### affecter un lot (≤ 200) — IDEMPOTENT
+### Réponse : { applied, unchanged, rejected }
+###   applied   : effectivement ajoutés
+###   unchanged : déjà membres (rejouer la même sélection n'est pas une erreur)
+###   rejected  : inconnus, supprimés, ou appartenant à une AUTRE organisation
+POST {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleIds": ["{{vehicule1}}", "{{vehicule2}}"] }
+
+### rejouer la même affectation → applied vide, unchanged renseigné (200)
+POST {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleIds": ["{{vehicule1}}"] }
+
+### lot PARTIELLEMENT valide → 200, l'inconnu ressort dans `rejected`
+POST {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleIds": ["{{vehicule3}}", "{{inconnu}}"] }
+
+### lot ENTIÈREMENT invalide → 422 E_MEMBERS_OUT_OF_SCOPE
+POST {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleIds": ["{{inconnu}}"] }
+
+### membres du groupe (identifiant + immatriculation + date d'ajout)
+GET {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+
+### retirer un véhicule → 204
+DELETE {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles/{{vehicule3}}
+Authorization: Bearer {{token}}
+
+### le retirer une seconde fois → 404 (il n'est plus membre)
+DELETE {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles/{{vehicule3}}
+Authorization: Bearer {{token}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  2. GROUPES DE BOÎTIERS
+###  Habilitations : device:read · device:write
+###  Mêmes règles que les véhicules ; la clé du corps devient `deviceIds`.
+### ═════════════════════════════════════════════════════════════════════════
+
+### créer
+# @name createDeviceGroup
+POST {{api}}/device-groups
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Trackers MV730",
+  "description": "Lot 2026 — boîtiers avec relais",
+  "color": "#059669"
+}
+
+###
+@deviceGroupId = {{createDeviceGroup.response.body.data.id}}
+
+### lister
+GET {{api}}/device-groups
+Authorization: Bearer {{token}}
+
+### affecter des boîtiers
+POST {{api}}/device-groups/{{deviceGroupId}}/devices
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "deviceIds": ["{{boitier1}}", "{{boitier2}}", "{{boitier3}}"] }
+
+### consulter — groupe + membres (identifiant + IMEI)
+GET {{api}}/device-groups/{{deviceGroupId}}
+Authorization: Bearer {{token}}
+
+### membres seuls
+GET {{api}}/device-groups/{{deviceGroupId}}/devices
+Authorization: Bearer {{token}}
+
+### retirer un boîtier
+DELETE {{api}}/device-groups/{{deviceGroupId}}/devices/{{boitier3}}
+Authorization: Bearer {{token}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  3. GROUPES CRÉÉS POUR UNE AUTRE ORGANISATION
+###  Réservé à l'exploitant plateforme (joker `*`).
+### ═════════════════════════════════════════════════════════════════════════
+
+### organisation de démonstration (ignorer si elle existe déjà → 409)
+# @name createOrg
+POST {{api}}/organizations
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "code": "transports-kone",
+  "name": "Transports Koné",
+  "contactEmail": "contact@kone.ci",
+  "admin": {
+    "email": "direction@kone.ci",
+    "password": "MotDePasse2026!",
+    "fullName": "Directeur Koné"
+  }
+}
+
+###
+@orgId = {{createOrg.response.body.data.organization.id}}
+
+### créer un groupe de véhicules POUR cette organisation
+POST {{api}}/organizations/{{orgId}}/vehicle-groups
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{ "name": "Flotte Bouaké", "color": "#7C3AED" }
+
+### créer un groupe de boîtiers POUR cette organisation
+POST {{api}}/organizations/{{orgId}}/device-groups
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{ "name": "Trackers Bouaké" }
+
+### lister les groupes d'une organisation désignée
+GET {{api}}/organizations/{{orgId}}/vehicle-groups
+Authorization: Bearer {{superToken}}
+
+###
+GET {{api}}/organizations/{{orgId}}/device-groups
+Authorization: Bearer {{superToken}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  4. JOURNAL D'AUDIT
+###
+###  Lecture seule : `audit_logs` est append-only et partitionnée par mois.
+###  Fenêtre par défaut : 30 jours glissants. Plafond : 366 jours.
+###  Filtres : page · perPage (≤ 200) · from · to · action · resourceType ·
+###            resourceId · actorId · organizationId (exploitant seulement)
+### ═════════════════════════════════════════════════════════════════════════
+
+### journal de SON organisation
+GET {{api}}/audit-logs?page=1&perPage=25
+Authorization: Bearer {{token}}
+
+### valeurs distinctes d'`action` — alimente le filtre du tableau de bord
+GET {{api}}/audit-logs/actions
+Authorization: Bearer {{token}}
+
+### filtrer par action
+GET {{api}}/audit-logs?action=fleet.vehicle_group.members_added
+Authorization: Bearer {{token}}
+
+### filtrer par type de ressource
+GET {{api}}/audit-logs?resourceType=vehicle_group&perPage=50
+Authorization: Bearer {{token}}
+
+### filtrer sur UNE ressource précise
+GET {{api}}/audit-logs?resourceId={{vehicleGroupId}}
+Authorization: Bearer {{token}}
+
+### filtrer par acteur (identifiant de l'utilisateur)
+GET {{api}}/audit-logs?actorId=22222222-2222-4222-8222-222222222222
+Authorization: Bearer {{token}}
+
+### fenêtre explicite
+GET {{api}}/audit-logs?from=2026-09-01T00:00:00Z&to=2026-09-30T23:59:59Z
+Authorization: Bearer {{token}}
+
+### journal d'une organisation désignée (exploitant)
+GET {{api}}/organizations/{{orgSisbm}}/audit-logs?perPage=50
+Authorization: Bearer {{superToken}}
+
+### journal INTER-organisations : l'exploitant sans filtre voit tout
+GET {{api}}/audit-logs?perPage=50
+Authorization: Bearer {{superToken}}
+
+
+### ──────────────────────── journal d'un groupe ────────────────────────
+### Réunit trois ensembles : le groupe lui-même, ses membres, et les
+### COMMANDES émises sur ces membres (les immobilisations sont tracées
+### sous `device_command`, pas sous `vehicle` ni `device`).
+
+### groupe de véhicules
+GET {{api}}/vehicle-groups/{{vehicleGroupId}}/audit-logs
+Authorization: Bearer {{token}}
+
+### groupe de boîtiers
+GET {{api}}/device-groups/{{deviceGroupId}}/audit-logs
+Authorization: Bearer {{token}}
+
+### même journal, filtré et borné
+GET {{api}}/device-groups/{{deviceGroupId}}/audit-logs?action=fleet.device_group.members_added&from=2026-09-01T00:00:00Z
+Authorization: Bearer {{token}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  5. CONTRÔLES — ce que l'API doit REFUSER
+###  Chacune de ces requêtes doit échouer. Un 200 ici est un défaut.
+### ═════════════════════════════════════════════════════════════════════════
+
+### 403 — l'opérateur (lecture seule) crée un groupe
+POST {{api}}/vehicle-groups
+Authorization: Bearer {{operateurToken}}
+Content-Type: application/json
+
+{ "name": "Groupe interdit" }
+
+### 403 — l'opérateur n'a pas `audit:read`
+GET {{api}}/audit-logs
+Authorization: Bearer {{operateurToken}}
+
+### 403 — un administrateur client vise le journal d'une AUTRE organisation
+GET {{api}}/audit-logs?organizationId={{orgId}}
+Authorization: Bearer {{token}}
+
+### 403 — un administrateur client crée un groupe pour une AUTRE organisation
+POST {{api}}/organizations/{{orgId}}/vehicle-groups
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Intrusion" }
+
+### 409 — nom de groupe déjà utilisé dans l'organisation (casse ignorée)
+POST {{api}}/vehicle-groups
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "flotte abidjan nord" }
+
+### 422 — couleur hors format #RRGGBB
+POST {{api}}/vehicle-groups
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Couleur invalide", "color": "bleu" }
+
+### 422 — lot vide
+POST {{api}}/vehicle-groups/{{vehicleGroupId}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "vehicleIds": [] }
+
+### 422 — `from` postérieur à `to` (E_INVALID_WINDOW)
+GET {{api}}/audit-logs?from=2026-09-19T00:00:00Z&to=2026-09-01T00:00:00Z
+Authorization: Bearer {{token}}
+
+### 422 — fenêtre supérieure à 366 jours (E_WINDOW_TOO_WIDE)
+GET {{api}}/audit-logs?from=2020-01-01T00:00:00Z
+Authorization: Bearer {{token}}
+
+### 404 — identifiant de groupe bien formé mais inexistant
+GET {{api}}/vehicle-groups/99999999-9999-4999-8999-999999999999
+Authorization: Bearer {{token}}
+
+
+### ═════════════════════════════════════════════════════════════════════════
+###  6. SUPPRESSION (logique)
+###  Le groupe sort des listes mais reste référencé par les politiques, les
+###  geofences et l'audit. À jouer en dernier : les requêtes ci-dessus
+###  retourneront 404 ensuite.
+### ═════════════════════════════════════════════════════════════════════════
+
+### supprimer le groupe de véhicules → 204
+DELETE {{api}}/vehicle-groups/{{vehicleGroupId}}
+Authorization: Bearer {{token}}
+
+### le consulter à nouveau → 404
+GET {{api}}/vehicle-groups/{{vehicleGroupId}}
+Authorization: Bearer {{token}}
+
+### supprimer le groupe de boîtiers → 204
+DELETE {{api}}/device-groups/{{deviceGroupId}}
+Authorization: Bearer {{token}}
+
+### la trace de suppression, elle, reste dans le journal
+GET {{api}}/audit-logs?action=fleet.vehicle_group.deleted
+Authorization: Bearer {{token}}

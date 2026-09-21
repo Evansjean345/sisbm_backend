@@ -1,0 +1,60 @@
+# =============================================================================
+#  Services à AJOUTER dans docker/docker-compose.yml
+# =============================================================================
+
+# ---------------------------------------------------------------- broker
+mosquitto:
+  image: eclipse-mosquitto:2.1-alpine # image OFFICIELLE Docker
+  container_name: sisbm_mqtt
+  restart: unless-stopped
+  ports:
+    # Développement seulement. En production, n'exposer que 8883 (TLS).
+    - '${MQTT_PORT:-1883}:1883'
+  volumes:
+    - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    - ./mosquitto/acl:/mosquitto/config/acl:ro
+    - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+    - mosquitto_data:/mosquitto/data
+  healthcheck:
+    test:
+      [
+        'CMD-SHELL',
+        "mosquitto_sub -h localhost -t '$$SYS/#' -E -i hc -u sisbm_monitor -P $$MQTT_MONITOR_PASSWORD || exit 1",
+      ]
+    interval: 20s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+
+# ------------------------------------------------- worker d'ingestion
+# PROCESSUS SÉPARÉ de l'API : une rafale de Store & Forward ne doit pas
+# dégrader le temps de réponse des tableaux de bord.
+ingest:
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    target: runtime
+  container_name: sisbm_ingest
+  restart: unless-stopped
+  env_file: ../.env
+  environment:
+    DB_HOST: postgres
+    REDIS_HOST: redis
+    MQTT_HOST: mosquitto
+    RUN_MIGRATIONS: 'false'
+  command: ['node', 'ace', 'sisbm:ingest']
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    mosquitto:
+      condition: service_healthy
+  # Une seule instance au démarrage. Monter à 2 ou 3 est possible : le verrou
+  # consultatif par véhicule et la clé d'idempotence rendent l'ingestion
+  # concurrente sûre.
+  deploy:
+    replicas: 1
+
+# À ajouter dans la section volumes: du fichier principal
+#   mosquitto_data:

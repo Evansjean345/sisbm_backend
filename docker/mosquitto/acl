@@ -1,0 +1,21 @@
+# =============================================================================
+#  Liste de contrôle d'accès — moindre privilège
+#
+#  Sans ce fichier, tout compte authentifié lit TOUS les topics.
+#  Avec lui, Flespi peut publier sans jamais pouvoir relire la flotte.
+# =============================================================================
+
+# Flespi : PUBLIE la télémétrie. Aucun droit de lecture.
+user flespi
+topic write sisbm/telemetry/+/data
+topic write sisbm/telemetry/+/events
+
+# Backend SISBM CORE : LIT la télémétrie, publie les accusés de commande.
+user sisbm_ingest
+topic read  sisbm/telemetry/#
+topic write sisbm/commands/+/ack
+
+# Supervision / métrologie : lecture seule.
+user sisbm_monitor
+topic read sisbm/telemetry/#
+topic read sisbm/commands/#
