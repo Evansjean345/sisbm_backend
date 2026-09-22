@@ -50,19 +50,46 @@ router
 
     // ---- utilisateurs et rôles
     router.get('/roles', [UserController, 'roles'])
+    //admin can
     router.get('/users', [UserController, 'index'])
+    //admin can
     router.post('/users', [UserController, 'store'])
+    //admin can
     router.get('/users/:id', [UserController, 'show'])
     router.patch('/users/:id', [UserController, 'update'])
     router.post('/users/:id/suspend', [UserController, 'suspend'])
     router.delete('/users/:id', [UserController, 'destroy'])
+    //--users adminRoutes
+    router
+      .group(() => {
+        router.get('/users', [UserController, 'indexAll'])
+        router.delete('/users/:id', [UserController, 'destroyALL'])
+        router.get('/users/:id', [UserController, 'showALL'])
+        router.patch('/users/:id', [UserController, 'updateALL'])
+        router.post('/users/:id/suspend', [UserController, 'suspendALL'])
+      })
+      .prefix('/admin')
+      .where('id', router.matchers.uuid())
 
     // ---- véhicules
+    //admin can
     router.get('/vehicles', [VehicleController, 'index'])
     router.post('/vehicles', [VehicleController, 'store'])
     router.get('/vehicles/:id', [VehicleController, 'show'])
     router.patch('/vehicles/:id', [VehicleController, 'update'])
     router.delete('/vehicles/:id', [VehicleController, 'destroy'])
+
+    //vehicles admin
+    router
+      .group(() => {
+        router.get('/vehicles', [VehicleController, 'indexAll'])
+        router.post('/vehicles', [VehicleController, 'store'])
+        router.get('/vehicles/:id', [VehicleController, 'show'])
+        router.patch('/vehicles/:id', [VehicleController, 'update'])
+        router.delete('/vehicles/:id', [VehicleController, 'destroy'])
+      })
+      .prefix('/admin')
+      .where('id', router.matchers.uuid())
 
     // ---- boîtiers
     router.get('/devices', [DeviceController, 'index'])

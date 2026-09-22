@@ -15,6 +15,11 @@ export type ScannedRoutes = {
     'user.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'user.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'user.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.index_all': { paramsTuple?: []; params?: {} }
+    'user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.index': { paramsTuple?: []; params?: {} }
     'vehicle.store': { paramsTuple?: []; params?: {} }
     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -110,6 +115,8 @@ export type ScannedRoutes = {
     'user.roles': { paramsTuple?: []; params?: {} }
     'user.index': { paramsTuple?: []; params?: {} }
     'user.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.index_all': { paramsTuple?: []; params?: {} }
+    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.index': { paramsTuple?: []; params?: {} }
     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'device.index': { paramsTuple?: []; params?: {} }
@@ -156,6 +163,8 @@ export type ScannedRoutes = {
     'user.roles': { paramsTuple?: []; params?: {} }
     'user.index': { paramsTuple?: []; params?: {} }
     'user.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.index_all': { paramsTuple?: []; params?: {} }
+    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.index': { paramsTuple?: []; params?: {} }
     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'device.index': { paramsTuple?: []; params?: {} }
@@ -203,6 +212,7 @@ export type ScannedRoutes = {
     'user.change_password': { paramsTuple?: []; params?: {} }
     'user.store': { paramsTuple?: []; params?: {} }
     'user.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.store': { paramsTuple?: []; params?: {} }
     'device.store': { paramsTuple?: []; params?: {} }
     'device.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -240,6 +250,7 @@ export type ScannedRoutes = {
   }
   PATCH: {
     'user.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'device.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'organization.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -249,6 +260,7 @@ export type ScannedRoutes = {
   }
   DELETE: {
     'user.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'vehicle.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'device.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'device.unassign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

@@ -34,10 +34,34 @@ export default class VehicleController {
       search,
       status,
     } = await ctx.request.validateUsing(listVehiclesValidator)
-    const org = toExecutionContext(ctx).organizationId
+    //const org = toExecutionContext(ctx).organizationId
 
     const query = VehicleModel.query()
-      .where('organization_id', org)
+      //.where('organization_id', org)
+      .whereNull('deleted_at')
+      .orderBy('registration')
+
+    if (status) query.where('status', status)
+    // pg_trgm est installé (migration 001) : la recherche floue sur
+    // l'immatriculation reste indexée.
+    if (search) query.whereILike('registration', `%${search}%`)
+
+    const resultat = await query.paginate(page, Math.min(perPage, 100))
+    return ctx.response.ok(resultat.toJSON())
+  }
+  /** GET /api/v1/vehicles/admin */
+  async indexAll(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    const {
+      page = 1,
+      perPage = 25,
+      search,
+      status,
+    } = await ctx.request.validateUsing(listVehiclesValidator)
+    //const org = toExecutionContext(ctx).organizationId
+
+    const query = VehicleModel.query()
+      //.where('organization_id', org)
       .whereNull('deleted_at')
       .orderBy('registration')
 
@@ -106,6 +130,7 @@ export default class VehicleController {
 
     const vehicule = await VehicleModel.create({
       ...payload,
+      registration: `sisbm${payload.registration}`,
       organizationId: org,
       status: payload.status ?? 'active',
       odometerKm: payload.odometerKm ?? 0,
