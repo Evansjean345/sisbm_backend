@@ -4,6 +4,13 @@ import OrganizationModel from '#infrastructure/persistence/models/organization_m
 import RoleModel from '#infrastructure/persistence/models/role_model'
 import UserModel from '#infrastructure/persistence/models/user_model'
 import VehicleModel from '#infrastructure/persistence/models/vehicle_model'
+import DeviceModel from '#infrastructure/persistence/models/device_model'
+import DeviceCommandModel from '#infrastructure/persistence/models/device_command_model'
+import { DateTime } from 'luxon'
+import type { LucidModel, ModelQueryBuilderContract } from '@adonisjs/lucid/types/model'
+import { authorizePlatform } from '#presentation/http/support/platform_scope'
+import { adminActivityValidator } from '#presentation/http/validators/admin/admin_validators'
+import { LucidActivityReader } from '#infrastructure/persistence/readers/activity_reader'
 import { CreateOrganization } from '#application/identity/use_cases/create_organization'
 import { CreateOrganizationUser } from '#application/identity/use_cases/create_organization_user'
 import { missingPermissions } from '#domain/identity/role_policy'
@@ -38,7 +45,8 @@ import { toExecutionContext } from '#presentation/http/support/execution_context
 export default class OrganizationController {
   constructor(
     private readonly createOrganization: CreateOrganization,
-    private readonly createOrganizationUser: CreateOrganizationUser
+    private readonly createOrganizationUser: CreateOrganizationUser,
+    private readonly activity: LucidActivityReader
   ) {}
 
   /** GET /api/v1/organizations */
@@ -212,6 +220,144 @@ export default class OrganizationController {
             organizationId: role.organizationId,
             permissions: role.permissions ?? [],
           }).length === 0,
+      })),
+    })
+  }
+
+  // =========================================================================
+  //  TABLEAU DE BORD ADMIN
+  // =========================================================================
+
+  /**
+   * GET /api/v1/admin/overview
+   *
+   * Les indicateurs de la page d'accueil du tableau de bord, en UN appel :
+   * organisations, comptes, véhicules, boîtiers et commandes des dernières
+   * 24 h. Le détail de chaque ressource est sur `/admin/<ressource>/stats`.
+   */
+  async overviewAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const depuis = DateTime.now().minus({ hours: 24 })
+
+    const compter = async (q: ModelQueryBuilderContract<LucidModel>) => {
+      const ligne = await q.count('* as total').first()
+      return Number(ligne?.$extras.total ?? 0)
+    }
+
+    const [
+      organisations,
+      organisationsActives,
+      utilisateurs,
+      utilisateursActifs,
+      vehicules,
+      boitiers,
+      boitiersRattaches,
+      boitiersSilencieux,
+      commandes24h,
+      commandesEchouees24h,
+      commandesEnVol,
+    ] = await Promise.all([
+      compter(OrganizationModel.query().whereNull('deleted_at')),
+      compter(OrganizationModel.query().whereNull('deleted_at').where('is_active', true)),
+      compter(UserModel.query().whereNull('deleted_at')),
+      compter(UserModel.query().whereNull('deleted_at').where('status', 'active')),
+      compter(VehicleModel.query().whereNull('deleted_at')),
+      compter(DeviceModel.query().whereNull('deleted_at')),
+      compter(DeviceModel.query().whereNull('deleted_at').whereNotNull('flespi_device_id')),
+      compter(
+        DeviceModel.query()
+          .whereNull('deleted_at')
+          .whereNot('status', 'decommissioned')
+          .where((q) => q.whereNull('last_seen_at').orWhere('last_seen_at', '<', depuis.toSQL()!))
+      ),
+      compter(DeviceCommandModel.query().where('requested_at', '>=', depuis.toJSDate())),
+      compter(
+        DeviceCommandModel.query()
+          .where('requested_at', '>=', depuis.toJSDate())
+          .whereIn('status', ['failed', 'expired'])
+      ),
+      compter(
+        DeviceCommandModel.query().whereIn('status', [
+          'pending_validation',
+          'approved',
+          'queued',
+          'sent',
+        ])
+      ),
+    ])
+
+    return ctx.response.ok({
+      data: {
+        organizations: { total: organisations, active: organisationsActives },
+        users: { total: utilisateurs, active: utilisateursActifs },
+        vehicles: { total: vehicules },
+        devices: {
+          total: boitiers,
+          flespiLinked: boitiersRattaches,
+          silentSince24h: boitiersSilencieux,
+        },
+        commands: {
+          last24h: commandes24h,
+          failedLast24h: commandesEchouees24h,
+          inFlight: commandesEnVol,
+        },
+        generatedAt: DateTime.now().toISO(),
+      },
+    })
+  }
+
+  /**
+   * GET /api/v1/admin/stats/activity?days=30&organizationId=
+   *
+   * Séries journalières des courbes du tableau de bord : positions reçues,
+   * véhicules actifs, trajets, km, commandes par résultat, alertes et
+   * croissance du parc. Un point par jour, jours vides compris.
+   */
+  async activityAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { days = 30, organizationId } = await ctx.request.validateUsing(adminActivityValidator)
+    const rapport = await this.activity.daily({ days, organizationId })
+    return ctx.response.ok({ data: rapport })
+  }
+
+  /**
+   * GET /api/v1/admin/organizations/stats
+   *
+   * Une ligne par organisation : comptes, véhicules, boîtiers. Alimente le
+   * tableau comparatif des clients (4 requêtes groupées, quel que soit le
+   * nombre d'organisations).
+   */
+  async statsAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+
+    const parOrg = (model: typeof UserModel | typeof VehicleModel | typeof DeviceModel) =>
+      model
+        .query()
+        .whereNull('deleted_at')
+        .select('organization_id')
+        .count('* as total')
+        .groupBy('organization_id')
+
+    const [organisations, users, vehicles, devices] = await Promise.all([
+      OrganizationModel.query().whereNull('deleted_at').orderBy('name'),
+      parOrg(UserModel),
+      parOrg(VehicleModel),
+      parOrg(DeviceModel),
+    ])
+
+    const index = (lignes: Array<{ organizationId: string; $extras: Record<string, unknown> }>) =>
+      Object.fromEntries(lignes.map((l) => [l.organizationId, Number(l.$extras.total ?? 0)]))
+    const [u, v, d] = [index(users), index(vehicles), index(devices)]
+
+    return ctx.response.ok({
+      data: organisations.map((o) => ({
+        id: o.id,
+        code: o.code,
+        name: o.name,
+        isActive: o.isActive,
+        users: u[o.id] ?? 0,
+        vehicles: v[o.id] ?? 0,
+        devices: d[o.id] ?? 0,
       })),
     })
   }

@@ -109,10 +109,12 @@ export class RequestImmobilization implements UseCase<
     // Capturée hors fermeture : TypeScript ne conserve pas l'affinement de type
     // à l'intérieur du callback de transaction.
     const vitesse = state.speed
+    //120s pour convertir les positions
+    /*
     const ageSeconds = Math.floor((now.getTime() - state.recordedAt.getTime()) / 1000)
     if (ageSeconds > this.settings.maxPositionAgeSeconds) {
       return Err(new StalePositionError(ageSeconds, this.settings.maxPositionAgeSeconds))
-    }
+    } */
 
     const safetyLimit = Speed.fromKph(this.settings.safetySpeedKph)
     if (!safetyLimit.ok) return safetyLimit
@@ -157,7 +159,10 @@ export class RequestImmobilization implements UseCase<
           resourceType: 'device_command',
           resourceId: command.id.value,
           after: command.snapshot() as unknown as Record<string, unknown>,
-          metadata: { speedAtRequestKph: vitesse.kph, positionAgeSeconds: ageSeconds },
+          metadata: {
+            speedAtRequestKph: vitesse.kph,
+            // positionAgeSeconds: ageSeconds
+          },
         })
 
         return Ok({

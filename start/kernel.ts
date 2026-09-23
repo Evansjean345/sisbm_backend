@@ -45,4 +45,6 @@ router.use([
  */
 export const middleware = router.named({
   auth: () => import('#presentation/http/middleware/auth_middleware'),
+  /** Tableau de bord d'administration : joker `*` exigé (cf. start/routes/admin.ts). */
+  platformAdmin: () => import('#presentation/http/middleware/platform_admin_middleware'),
 })

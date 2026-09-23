@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import type { LucidModel, LucidRow } from '@adonisjs/lucid/types/model'
+import OrganizationModel from '#infrastructure/persistence/models/organization_model'
 import type { AuditLogger } from '#application/ports'
 import type { AuditLogReader } from '#application/audit/ports'
 import type { GroupMembershipRepository } from '#application/fleet/ports'
@@ -16,6 +17,11 @@ import { authorize, type Permission } from '#presentation/http/support/authorize
 import { organizationScope } from '#presentation/http/support/organization_scope'
 import { toExecutionContext } from '#presentation/http/support/execution_context'
 import { resolveWindow, serializeAuditPage } from '#presentation/http/support/audit_window'
+import {
+  adminListGroupsValidator,
+  targetOrganizationValidator,
+} from '#presentation/http/validators/admin/admin_validators'
+import { authorizePlatform, organizationsOf } from '#presentation/http/support/platform_scope'
 
 interface GroupRow extends LucidRow {
   id: string
@@ -279,6 +285,81 @@ export abstract class GroupControllerBase {
     })
 
     return ctx.response.ok(serializeAuditPage(page, fenetre))
+  }
+
+  // =========================================================================
+  //  TABLEAU DE BORD ADMIN — toutes organisations (joker `*` exigé)
+  // =========================================================================
+  //
+  //  Détail, modification, suppression, membres et journal d'un groupe n'ont
+  //  pas de variante `*All` : `trouver()` ouvre déjà tous les groupes au
+  //  détenteur de `*`. Les routes admin pointent donc sur les mêmes fonctions.
+
+  /** GET /api/v1/admin/{vehicle,device}-groups ?organizationId=&search=&page=&perPage= */
+  async indexAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const {
+      page = 1,
+      perPage = 25,
+      search,
+      organizationId,
+    } = await ctx.request.validateUsing(adminListGroupsValidator)
+
+    const query = this.cfg.model.query().whereNull('deleted_at').orderBy('name')
+    if (organizationId) query.where('organization_id', organizationId)
+    if (search) query.whereILike('name', `%${search}%`)
+
+    const resultat = await query.paginate(page, Math.min(perPage, 100))
+    const lignes = resultat.all() as GroupRow[]
+    const [compteurs, organisations] = await Promise.all([
+      this.membership.countByGroup(lignes.map((g) => g.id)),
+      organizationsOf(lignes.map((g) => g.organizationId)),
+    ])
+
+    return ctx.response.ok({
+      meta: resultat.getMeta(),
+      data: lignes.map((g) => ({
+        ...g.serialize(),
+        organization: organisations[g.organizationId] ?? null,
+        membersCount: compteurs[g.id] ?? 0,
+      })),
+    })
+  }
+
+  /**
+   * POST /api/v1/admin/{vehicle,device}-groups — body : { organizationId, name, ... }
+   *
+   * Équivalent de `POST /organizations/:organizationId/{famille}`, avec
+   * l'organisation dans le corps : plus simple pour un formulaire.
+   */
+  async storeAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { organizationId } = await ctx.request.validateUsing(targetOrganizationValidator)
+    const payload = await ctx.request.validateUsing(createGroupValidator)
+
+    const organisation = await organizationsOf([organizationId])
+    const existe = await OrganizationModel.query()
+      .where('id', organizationId)
+      .whereNull('deleted_at')
+      .select('id')
+      .first()
+    if (!existe) {
+      return ctx.response.notFound({
+        error: { code: 'E_NOT_FOUND', message: 'Organisation introuvable', details: {} },
+      })
+    }
+    if (await this.nomPris(organizationId, payload.name)) {
+      return this.nomDejaPris(ctx, payload.name)
+    }
+
+    const groupe = (await this.cfg.model.create({ ...payload, organizationId })) as GroupRow
+    await this.tracer(ctx, organizationId, 'created', groupe.id, {
+      after: { name: groupe.name, description: groupe.description, color: groupe.color },
+    })
+
+    return ctx.response.created({
+      data: { ...groupe.serialize(), organization: organisation[organizationId], membersCount: 0 },
+    })
   }
 
   // -------------------------------------------------------------------------

@@ -111,9 +111,11 @@ export class DispatchEngineCommand implements UseCase<
           }
 
           const age = Math.floor((now.getTime() - state.recordedAt.getTime()) / 1000)
+          //test en supprimant le delai
+          /*
           if (age > this.settings.maxPositionAgeSeconds) {
             return Err(new StalePositionError(age, this.settings.maxPositionAgeSeconds))
-          }
+          } */
           vitesse = state.speed
         }
 

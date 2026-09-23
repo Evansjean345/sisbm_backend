@@ -1,0 +1,582 @@
+diff --git a/.adonisjs/server/routes.d.ts b/.adonisjs/server/routes.d.ts
+index 3a96981..f1f76c8 100644
+--- a/.adonisjs/server/routes.d.ts
++++ b/.adonisjs/server/routes.d.ts
+@@ -4,6 +4,77 @@ type ParamValue = string | number | bigint | boolean
+ 
+ export type ScannedRoutes = {
+   ALL: {
++    'admin.organization.overview_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.activity_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.index': { paramsTuple?: []; params?: {} }
++    'admin.organization.store': { paramsTuple?: []; params?: {} }
++    'admin.organization.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.users': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.store_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.roles': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.by_organization': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.user.index_all': { paramsTuple?: []; params?: {} }
++    'admin.user.store_all': { paramsTuple?: []; params?: {} }
++    'admin.user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.activate_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.store_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.device.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device.store_all': { paramsTuple?: []; params?: {} }
++    'admin.device.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.assign_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.unassign_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.sync_flespi_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_status_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_logs_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.flespi_catalog_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.command.index_all': { paramsTuple?: []; params?: {} }
++    'admin.command.catalog': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.results_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle_group.store_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.unassign': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
++    'admin.vehicle_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device_group.store_all': { paramsTuple?: []; params?: {} }
++    'admin.device_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.unassign': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
++    'admin.device_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.index': { paramsTuple?: []; params?: {} }
++    'admin.audit_log.actions': { paramsTuple?: []; params?: {} }
++    'admin.command.sync_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.send_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.cancel_all': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'commandId': ParamValue} }
++    'admin.command.execute_all': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'command': ParamValue} }
++    'admin.commands.cutEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.commands.restoreEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'auth.login': { paramsTuple?: []; params?: {} }
+     'auth.me': { paramsTuple?: []; params?: {} }
+     'auth.logout': { paramsTuple?: []; params?: {} }
+@@ -15,11 +86,6 @@ export type ScannedRoutes = {
+     'user.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'user.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'user.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.index_all': { paramsTuple?: []; params?: {} }
+-    'user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.index': { paramsTuple?: []; params?: {} }
+     'vehicle.store': { paramsTuple?: []; params?: {} }
+     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+@@ -111,12 +177,48 @@ export type ScannedRoutes = {
+     'immobilization.restore': { paramsTuple?: []; params?: {} }
+   }
+   GET: {
++    'admin.organization.overview_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.activity_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.index': { paramsTuple?: []; params?: {} }
++    'admin.organization.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.users': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.roles': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.by_organization': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.user.index_all': { paramsTuple?: []; params?: {} }
++    'admin.user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.device.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_status_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_logs_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.flespi_catalog_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.command.index_all': { paramsTuple?: []; params?: {} }
++    'admin.command.catalog': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.results_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.index': { paramsTuple?: []; params?: {} }
++    'admin.audit_log.actions': { paramsTuple?: []; params?: {} }
+     'auth.me': { paramsTuple?: []; params?: {} }
+     'user.roles': { paramsTuple?: []; params?: {} }
+     'user.index': { paramsTuple?: []; params?: {} }
+     'user.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.index_all': { paramsTuple?: []; params?: {} }
+-    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.index': { paramsTuple?: []; params?: {} }
+     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'device.index': { paramsTuple?: []; params?: {} }
+@@ -159,12 +261,48 @@ export type ScannedRoutes = {
+     'command.results': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+   }
+   HEAD: {
++    'admin.organization.overview_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.activity_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.organization.index': { paramsTuple?: []; params?: {} }
++    'admin.organization.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.users': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.organization.roles': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.by_organization': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.user.index_all': { paramsTuple?: []; params?: {} }
++    'admin.user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.device.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.live_history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_status_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_logs_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.flespi_telemetry_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.flespi_catalog_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.stats_all': { paramsTuple?: []; params?: {} }
++    'admin.command.index_all': { paramsTuple?: []; params?: {} }
++    'admin.command.catalog': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.history_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.results_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.index_all': { paramsTuple?: []; params?: {} }
++    'admin.device_group.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.audit_logs_of_group': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.audit_log.index': { paramsTuple?: []; params?: {} }
++    'admin.audit_log.actions': { paramsTuple?: []; params?: {} }
+     'auth.me': { paramsTuple?: []; params?: {} }
+     'user.roles': { paramsTuple?: []; params?: {} }
+     'user.index': { paramsTuple?: []; params?: {} }
+     'user.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.index_all': { paramsTuple?: []; params?: {} }
+-    'user.show_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.index': { paramsTuple?: []; params?: {} }
+     'vehicle.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'device.index': { paramsTuple?: []; params?: {} }
+@@ -207,12 +345,29 @@ export type ScannedRoutes = {
+     'command.results': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+   }
+   POST: {
++    'admin.organization.store': { paramsTuple?: []; params?: {} }
++    'admin.organization.store_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.store_all': { paramsTuple?: []; params?: {} }
++    'admin.user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.activate_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.store_all': { paramsTuple?: []; params?: {} }
++    'admin.device.store_all': { paramsTuple?: []; params?: {} }
++    'admin.device.assign_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.sync_flespi_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.store_all': { paramsTuple?: []; params?: {} }
++    'admin.vehicle_group.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.store_all': { paramsTuple?: []; params?: {} }
++    'admin.device_group.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.sync_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.send_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.command.execute_all': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'command': ParamValue} }
++    'admin.commands.cutEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.commands.restoreEngineForbidden': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'auth.login': { paramsTuple?: []; params?: {} }
+     'auth.logout': { paramsTuple?: []; params?: {} }
+     'user.change_password': { paramsTuple?: []; params?: {} }
+     'user.store': { paramsTuple?: []; params?: {} }
+     'user.suspend': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.suspend_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.store': { paramsTuple?: []; params?: {} }
+     'device.store': { paramsTuple?: []; params?: {} }
+     'device.assign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+@@ -249,8 +404,13 @@ export type ScannedRoutes = {
+     'immobilization.restore': { paramsTuple?: []; params?: {} }
+   }
+   PATCH: {
++    'admin.organization.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'user.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.update_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'device.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'organization.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+@@ -259,8 +419,16 @@ export type ScannedRoutes = {
+     'flespi_channel.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+   }
+   DELETE: {
++    'admin.user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device.unassign_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.vehicle_group.unassign': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
++    'admin.device_group.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
++    'admin.device_group.unassign': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
++    'admin.command.cancel_all': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'commandId': ParamValue} }
+     'user.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+-    'user.destroy_all': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'vehicle.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'device.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+     'device.unassign': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+diff --git a/app/application/admin/ports.ts b/app/application/admin/ports.ts
+new file mode 100644
+index 0000000..f7a5ef6
+--- /dev/null
++++ b/app/application/admin/ports.ts
+@@ -0,0 +1,54 @@
++/**
++ * =========================================================================
++ *  PORT DE LECTURE — ACTIVITÉ DE LA PLATEFORME (tableau de bord admin)
++ * =========================================================================
++ *
++ * Séries JOURNALIÈRES pour les courbes du tableau de bord. Un point par jour
++ * de la fenêtre, jours sans activité compris (valeur 0) : le front trace sans
++ * avoir à combler les trous.
++ *
++ * Les jours sont découpés en UTC — c'est aussi l'heure légale d'Abidjan.
++ * La fenêtre est BORNÉE (90 jours max) : `positions` est partitionnée par
++ * mois, une lecture non bornée balaierait tout l'historique.
++ */
++
++export interface ActivityQuery {
++  /** Nombre de jours, aujourd'hui inclus. */
++  days: number
++  /** Absent = toutes les organisations. */
++  organizationId?: string
++}
++
++export interface ActivityDay {
++  /** Jour au format AAAA-MM-JJ (UTC). */
++  date: string
++  /** Positions GPS valides reçues. */
++  positions: number
++  /** Véhicules distincts ayant émis au moins une position. */
++  activeVehicles: number
++  trips: number
++  distanceKm: number
++  commands: {
++    total: number
++    acknowledged: number
++    /** failed + expired */
++    failed: number
++    /** en file, envoyées, annulées, à valider… */
++    other: number
++  }
++  alerts: number
++  /** Créations du jour (lignes non supprimées). */
++  created: { vehicles: number; devices: number; users: number }
++  /** Effectifs cumulés en fin de journée. */
++  totals: { vehicles: number; devices: number; users: number }
++}
++
++export interface ActivityReport {
++  from: string
++  to: string
++  days: ActivityDay[]
++}
++
++export interface ActivityReader {
++  daily(query: ActivityQuery): Promise<ActivityReport>
++}
+diff --git a/app/infrastructure/persistence/readers/activity_reader.ts b/app/infrastructure/persistence/readers/activity_reader.ts
+new file mode 100644
+index 0000000..ba3440e
+--- /dev/null
++++ b/app/infrastructure/persistence/readers/activity_reader.ts
+@@ -0,0 +1,157 @@
++import db from '@adonisjs/lucid/services/db'
++import type {
++  ActivityDay,
++  ActivityQuery,
++  ActivityReader,
++  ActivityReport,
++} from '#application/admin/ports'
++
++type Row = Record<string, unknown> & { day: string | Date }
++
++/**
++ * Séries journalières du tableau de bord admin.
++ *
++ * Une requête GROUP BY par source, fusionnées en mémoire sur le jour — plus
++ * lisible qu'un unique `generate_series` à dix jointures, et chaque requête
++ * profite de son propre index / partition pruning :
++ *
++ *   positions        → partition par mois sur `recorded_at`
++ *   trips            → idx_trips_org_started
++ *   device_commands  → requested_at
++ *   alerts           → triggered_at
++ *
++ * `count(DISTINCT vehicle_id)` sur `positions` est la requête la plus coûteuse
++ * (≈ 7 M lignes / mois pour 100 véhicules) : c'est la raison du plafond de
++ * 90 jours imposé par le validateur.
++ */
++export class LucidActivityReader implements ActivityReader {
++  async daily(query: ActivityQuery): Promise<ActivityReport> {
++    const days = Math.min(Math.max(Math.trunc(query.days), 1), 90)
++    const today = new Date()
++    today.setUTCHours(0, 0, 0, 0)
++    const from = new Date(today.getTime() - (days - 1) * 86_400_000)
++    const to = new Date(today.getTime() + 86_400_000)
++
++    const org = query.organizationId ?? null
++    const scope = (column = 'organization_id') => (org ? `AND ${column} = :org` : '')
++    const bindings = { from, to, org } as never
++    const jour = (column: string) =>
++      `to_char(date_trunc('day', ${column} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`
++
++    const [positions, trips, commands, alerts, created, bases] = await Promise.all([
++      this.rows(
++        `SELECT ${jour('recorded_at')} AS day,
++                count(*) AS positions,
++                count(DISTINCT vehicle_id) AS vehicles
++           FROM positions
++          WHERE recorded_at >= :from AND recorded_at < :to AND is_valid ${scope()}
++          GROUP BY 1`,
++        bindings
++      ),
++      this.rows(
++        `SELECT ${jour('started_at')} AS day,
++                count(*) AS trips,
++                COALESCE(sum(distance_m), 0) / 1000.0 AS km
++           FROM trips
++          WHERE started_at >= :from AND started_at < :to ${scope()}
++          GROUP BY 1`,
++        bindings
++      ),
++      this.rows(
++        `SELECT ${jour('requested_at')} AS day,
++                count(*) AS total,
++                count(*) FILTER (WHERE status = 'acknowledged') AS acknowledged,
++                count(*) FILTER (WHERE status IN ('failed', 'expired')) AS failed
++           FROM device_commands
++          WHERE requested_at >= :from AND requested_at < :to ${scope()}
++          GROUP BY 1`,
++        bindings
++      ),
++      this.rows(
++        `SELECT ${jour('triggered_at')} AS day, count(*) AS alerts
++           FROM alerts
++          WHERE triggered_at >= :from AND triggered_at < :to ${scope()}
++          GROUP BY 1`,
++        bindings
++      ),
++      this.rows(
++        ['vehicles', 'devices', 'users']
++          .map(
++            (t) =>
++              `SELECT '${t}' AS kind, ${jour('created_at')} AS day, count(*) AS n
++                 FROM ${t}
++                WHERE deleted_at IS NULL AND created_at >= :from AND created_at < :to ${scope()}
++                GROUP BY 2`
++          )
++          .join(' UNION ALL '),
++        bindings
++      ),
++      this.rows(
++        ['vehicles', 'devices', 'users']
++          .map(
++            (t) =>
++              `SELECT '${t}' AS kind, count(*) AS n
++                 FROM ${t}
++                WHERE deleted_at IS NULL AND created_at < :from ${scope()}`
++          )
++          .join(' UNION ALL '),
++        bindings
++      ),
++    ])
++
++    const by = (rows: Row[]) => new Map(rows.map((r) => [String(r.day), r]))
++    const p = by(positions)
++    const t = by(trips)
++    const c = by(commands)
++    const a = by(alerts)
++    const n = (v: unknown) => Number(v ?? 0)
++
++    const creations = new Map<string, Record<string, number>>()
++    for (const r of created) {
++      const jourCle = String(r.day)
++      const ligne = creations.get(jourCle) ?? {}
++      ligne[String(r.kind)] = n(r.n)
++      creations.set(jourCle, ligne)
++    }
++    const totaux: Record<string, number> = { vehicles: 0, devices: 0, users: 0 }
++    for (const r of bases) totaux[String(r.kind)] = n(r.n)
++
++    const serie: ActivityDay[] = []
++    for (let i = 0; i < days; i++) {
++      const date = new Date(from.getTime() + i * 86_400_000).toISOString().slice(0, 10)
++      const cr = creations.get(date) ?? {}
++      const cmd = c.get(date)
++      const total = n(cmd?.total)
++      const acknowledged = n(cmd?.acknowledged)
++      const failed = n(cmd?.failed)
++
++      totaux.vehicles += n(cr.vehicles)
++      totaux.devices += n(cr.devices)
++      totaux.users += n(cr.users)
++
++      serie.push({
++        date,
++        positions: n(p.get(date)?.positions),
++        activeVehicles: n(p.get(date)?.vehicles),
++        trips: n(t.get(date)?.trips),
++        distanceKm: Math.round(n(t.get(date)?.km) * 10) / 10,
++        commands: {
++          total,
++          acknowledged,
++          failed,
++          other: Math.max(total - acknowledged - failed, 0),
++        },
++        alerts: n(a.get(date)?.alerts),
++        created: { vehicles: n(cr.vehicles), devices: n(cr.devices), users: n(cr.users) },
++        totals: { ...totaux } as ActivityDay['totals'],
++      })
++    }
++
++    return { from: from.toISOString(), to: to.toISOString(), days: serie }
++  }
++
++  private async rows(sql: string, bindings: never): Promise<Row[]> {
++    const resultat = await db.rawQuery(sql, bindings)
++    return (resultat.rows ?? []) as Row[]
++  }
++}
+diff --git a/app/presentation/http/controllers/fleet/vehicle_controller.ts b/app/presentation/http/controllers/fleet/vehicle_controller.ts
+index e5369ff..c7ef05b 100644
+--- a/app/presentation/http/controllers/fleet/vehicle_controller.ts
++++ b/app/presentation/http/controllers/fleet/vehicle_controller.ts
+@@ -129,9 +129,11 @@ export default class VehicleController {
+     await authorizePlatform(ctx)
+     const { organizationId } = await ctx.request.validateUsing(adminOrganizationFilterValidator)
+ 
++    // Colonnes qualifiées : la répartition par connexion joint `vehicle_last_positions`,
++    // qui porte aussi `organization_id` (sinon « column reference is ambiguous »).
+     const base = () => {
+-      const q = VehicleModel.query().whereNull('deleted_at')
+-      if (organizationId) q.where('organization_id', organizationId)
++      const q = VehicleModel.query().whereNull('vehicles.deleted_at')
++      if (organizationId) q.where('vehicles.organization_id', organizationId)
+       return q
+     }
+ 
+diff --git a/app/presentation/http/controllers/identity/organization_controller.ts b/app/presentation/http/controllers/identity/organization_controller.ts
+index 2772ffb..6c27d0c 100644
+--- a/app/presentation/http/controllers/identity/organization_controller.ts
++++ b/app/presentation/http/controllers/identity/organization_controller.ts
+@@ -9,6 +9,8 @@ import DeviceCommandModel from '#infrastructure/persistence/models/device_comman
+ import { DateTime } from 'luxon'
+ import type { LucidModel, ModelQueryBuilderContract } from '@adonisjs/lucid/types/model'
+ import { authorizePlatform } from '#presentation/http/support/platform_scope'
++import { adminActivityValidator } from '#presentation/http/validators/admin/admin_validators'
++import { LucidActivityReader } from '#infrastructure/persistence/readers/activity_reader'
+ import { CreateOrganization } from '#application/identity/use_cases/create_organization'
+ import { CreateOrganizationUser } from '#application/identity/use_cases/create_organization_user'
+ import { missingPermissions } from '#domain/identity/role_policy'
+@@ -43,7 +45,8 @@ import { toExecutionContext } from '#presentation/http/support/execution_context
+ export default class OrganizationController {
+   constructor(
+     private readonly createOrganization: CreateOrganization,
+-    private readonly createOrganizationUser: CreateOrganizationUser
++    private readonly createOrganizationUser: CreateOrganizationUser,
++    private readonly activity: LucidActivityReader
+   ) {}
+ 
+   /** GET /api/v1/organizations */
+@@ -303,6 +306,20 @@ export default class OrganizationController {
+     })
+   }
+ 
++  /**
++   * GET /api/v1/admin/stats/activity?days=30&organizationId=
++   *
++   * Séries journalières des courbes du tableau de bord : positions reçues,
++   * véhicules actifs, trajets, km, commandes par résultat, alertes et
++   * croissance du parc. Un point par jour, jours vides compris.
++   */
++  async activityAll(ctx: HttpContext) {
++    await authorizePlatform(ctx)
++    const { days = 30, organizationId } = await ctx.request.validateUsing(adminActivityValidator)
++    const rapport = await this.activity.daily({ days, organizationId })
++    return ctx.response.ok({ data: rapport })
++  }
++
+   /**
+    * GET /api/v1/admin/organizations/stats
+    *
+diff --git a/app/presentation/http/validators/admin/admin_validators.ts b/app/presentation/http/validators/admin/admin_validators.ts
+index c576300..1116293 100644
+--- a/app/presentation/http/validators/admin/admin_validators.ts
++++ b/app/presentation/http/validators/admin/admin_validators.ts
+@@ -105,3 +105,11 @@ export const adminListCommandsValidator = vine.compile(
+     to: vine.string().trim().maxLength(40).use(isoInstant()).optional(),
+   })
+ )
++
++/** GET /admin/stats/activity — fenêtre des courbes (90 jours max : `positions` est partitionnée). */
++export const adminActivityValidator = vine.compile(
++  vine.object({
++    days: vine.number().min(7).max(90).optional(),
++    organizationId: vine.string().uuid().optional(),
++  })
++)
+diff --git a/start/routes/admin.ts b/start/routes/admin.ts
+index 8a6c6db..aa6e1f1 100644
+--- a/start/routes/admin.ts
++++ b/start/routes/admin.ts
+@@ -46,6 +46,7 @@ router
+   .group(() => {
+     // ---- vue d'ensemble
+     router.get('/overview', [OrganizationController, 'overviewAll'])
++    router.get('/stats/activity', [OrganizationController, 'activityAll'])
+ 
+     // ---- organisations
+     // `/stats` AVANT `/:id` : l'ordre reste explicite même si le matcher uuid
+@@ -100,6 +101,8 @@ router
+     // ---- commandes : lecture
+     router.get('/commands/stats', [CommandController, 'statsAll'])
+     router.get('/commands', [CommandController, 'indexAll'])
++    // Catalogue métier statique (aucune lecture du boîtier) : fonction client réutilisée.
++    router.get('/devices/:id/commands', [CommandController, 'catalog'])
+     router.get('/devices/:id/commands/history', [CommandController, 'historyAll'])
+     router.get('/devices/:id/commands/results', [CommandController, 'resultsAll'])
+ 

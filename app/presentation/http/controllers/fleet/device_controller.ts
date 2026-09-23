@@ -25,6 +25,22 @@ import { logQueryValidator } from '#presentation/http/validators/fleet/flespi_va
 import { toFlespiSeconds } from '#presentation/http/support/flespi_time'
 import { authorize } from '#presentation/http/support/authorize'
 import { toExecutionContext } from '#presentation/http/support/execution_context'
+import OrganizationModel from '#infrastructure/persistence/models/organization_model'
+import {
+  adminListDevicesValidator,
+  adminOrganizationFilterValidator,
+  targetOrganizationValidator,
+} from '#presentation/http/validators/admin/admin_validators'
+import {
+  PLATFORM_SCOPE,
+  applyScope,
+  authorizePlatform,
+  countsBy,
+  organizationsOf,
+  ownScope,
+  serializeWithOrganizations,
+  type TenantScope,
+} from '#presentation/http/support/platform_scope'
 
 /**
  * =========================================================================
@@ -106,7 +122,307 @@ export default class DeviceController {
   /** GET /api/v1/devices/:id */
   async show(ctx: HttpContext) {
     await authorize(ctx, 'viewVehicles')
-    const device = await this.trouver(ctx)
+    return this.showScoped(ctx, ownScope(ctx))
+  }
+
+  /**
+   * POST /api/v1/devices
+   *
+   * `syncFlespi: true` → crée (ou rattache) le device chez flespi sur le canal
+   * `flespiChannelId` (défaut FLESPI_CHANNEL_ID), avec le type
+   * `flespiDeviceType` (défaut « Micodus MV730 ») résolu dans le protocole du
+   * canal, puis l'enregistre en base.
+   *
+   * Micodus : fournir `terminalId` (ID de l'étiquette) ou `flespiIdent`.
+   * L'IMEI seul ne suffit pas — cf. flespi_ident.ts.
+   */
+  async store(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.storeScoped(ctx, toExecutionContext(ctx).organizationId)
+  }
+
+  /**
+   * POST /api/v1/devices/:id/flespi/sync
+   *
+   * Rattache après coup un boîtier SISBM à flespi (créé en stock sans
+   * `syncFlespi`, ou device flespi recréé). Mêmes garde-fous que la création.
+   */
+  async syncFlespi(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.syncFlespiScoped(ctx, ownScope(ctx))
+  }
+
+  /** PATCH /api/v1/devices/:id */
+  async update(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.updateScoped(ctx, ownScope(ctx))
+  }
+
+  /**
+   * DELETE /api/v1/devices/:id
+   *
+   * Flespi d'abord, base ensuite. Si Flespi échoue, le boîtier n'est pas
+   * archivé chez nous et l'opération reste rejouable.
+   */
+  async destroy(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.destroyScoped(ctx, ownScope(ctx))
+  }
+
+  /**
+   * POST /api/v1/devices/:id/assignment — monter le boîtier sur un véhicule.
+   *
+   * L'affectation est DATÉE. Les contraintes CM-01/CM-02 (`EXCLUDE USING gist`)
+   * garantissent en base qu'un boîtier n'est jamais sur deux véhicules à la
+   * fois. En cas de chevauchement, PostgreSQL lève une `exclusion_violation`
+   * traduite en 409 par le gestionnaire d'exceptions.
+   */
+  async assign(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.assignScoped(ctx, ownScope(ctx))
+  }
+
+  /** DELETE /api/v1/devices/:id/assignment — démonter le boîtier. */
+  async unassign(ctx: HttpContext) {
+    await authorize(ctx, 'manageVehicles')
+    return this.unassignScoped(ctx, ownScope(ctx))
+  }
+
+  /**
+   * GET /api/v1/devices/:id/telemetry — dernier message CHEZ FLESPI.
+   *
+   * Outil de DIAGNOSTIC : il interroge Flespi directement, pas notre base.
+   * Il répond à la question « le boîtier émet-il, et est-ce nous qui perdons
+   * les trames ? ». La source de vérité de l'historique reste `positions`.
+   */
+  async liveTelemetry(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    return this.liveTelemetryScoped(ctx, ownScope(ctx))
+  }
+
+  /** GET /api/v1/devices/:id/telemetry/history?from=&to=&count= */
+  async liveHistory(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    return this.liveHistoryScoped(ctx, ownScope(ctx))
+  }
+
+  /**
+   * GET /api/v1/devices/:id/flespi — DIAGNOSTIC COMPLET du rattachement.
+   *
+   * Répond en un appel aux questions d'une mise en service :
+   *   - le device existe-t-il chez flespi, avec quel ident et quel type ?
+   *   - son protocole est-il celui du canal ? (sinon il ne recevra rien)
+   *   - l'ident SISBM et l'ident flespi coïncident-ils ?
+   *   - le boîtier est-il connecté, quand a-t-il émis pour la dernière fois ?
+   *   - quelle est sa dernière position connue ?
+   */
+  async flespiStatus(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    return this.flespiStatusScoped(ctx, ownScope(ctx))
+  }
+
+  /** GET /api/v1/devices/:id/flespi/logs?from=&to=&count= — connexions, erreurs de décodage, modifications. */
+  async flespiLogs(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    return this.flespiLogsScoped(ctx, ownScope(ctx))
+  }
+
+  /** GET /api/v1/devices/:id/flespi/telemetry — dernière valeur de chaque paramètre. */
+  async flespiTelemetry(ctx: HttpContext) {
+    await authorize(ctx, 'viewVehicles')
+    return this.flespiTelemetryScoped(ctx, ownScope(ctx))
+  }
+
+  // =========================================================================
+  //  TABLEAU DE BORD ADMIN — toutes organisations (joker `*` exigé)
+  // =========================================================================
+
+  /**
+   * GET /api/v1/admin/devices
+   * ?organizationId=&status=&search=&unassigned=&linked=&page=&perPage=
+   */
+  async indexAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const {
+      page = 1,
+      perPage = 25,
+      status,
+      search,
+      unassigned,
+      linked,
+      organizationId,
+    } = await ctx.request.validateUsing(adminListDevicesValidator)
+
+    const query = DeviceModel.query().whereNull('deleted_at').orderBy('imei')
+    if (organizationId) query.where('organization_id', organizationId)
+    if (status) query.where('status', status)
+    if (search) query.whereILike('imei', `%${search}%`)
+    if (linked === true) query.whereNotNull('flespi_device_id')
+    if (linked === false) query.whereNull('flespi_device_id')
+    if (unassigned) {
+      query.whereNotExists((sub) =>
+        sub
+          .from('device_assignments as da')
+          .whereRaw('da.device_id = devices.id')
+          .whereRaw('upper_inf(da.period)')
+      )
+    }
+
+    const resultat = await query.paginate(page, Math.min(perPage, 100))
+    return ctx.response.ok(await serializeWithOrganizations(resultat))
+  }
+
+  /**
+   * GET /api/v1/admin/devices/stats?organizationId=
+   *
+   * Parc boîtiers : par statut, par organisation, rattachement flespi, montés
+   * ou en stock, et « silencieux » (aucune trame depuis 24 h ou jamais vus).
+   */
+  async statsAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { organizationId } = await ctx.request.validateUsing(adminOrganizationFilterValidator)
+
+    const base = () => {
+      const q = DeviceModel.query().whereNull('deleted_at')
+      if (organizationId) q.where('organization_id', organizationId)
+      return q
+    }
+    const total = async (q: ReturnType<typeof base>) => {
+      const ligne = await q.count('* as total').first()
+      return Number(ligne?.$extras.total ?? 0)
+    }
+
+    const [parStatut, parOrganisation, rattaches, montes, silencieux] = await Promise.all([
+      base().select('status').count('* as total').groupBy('status'),
+      base().select('organization_id').count('* as total').groupBy('organization_id'),
+      total(base().whereNotNull('flespi_device_id')),
+      total(
+        base().whereExists((sub) =>
+          sub
+            .from('device_assignments as da')
+            .whereRaw('da.device_id = devices.id')
+            .whereRaw('upper_inf(da.period)')
+        )
+      ),
+      total(
+        base()
+          .whereNot('status', 'decommissioned')
+          .where((q) =>
+            q
+              .whereNull('last_seen_at')
+              .orWhere('last_seen_at', '<', DateTime.now().minus({ hours: 24 }).toSQL()!)
+          )
+      ),
+    ])
+
+    const compteurs = countsBy(parStatut, 'status')
+    const organisations = await organizationsOf(parOrganisation.map((l) => l.organizationId))
+    const tous = Object.values(compteurs).reduce((a, b) => a + b, 0)
+
+    return ctx.response.ok({
+      data: {
+        total: tous,
+        byStatus: compteurs,
+        flespi: { linked: rattaches, notLinked: tous - rattaches },
+        assignment: { assigned: montes, unassigned: tous - montes },
+        silentSince24h: silencieux,
+        byOrganization: parOrganisation.map((l) => ({
+          organization: organisations[l.organizationId] ?? { id: l.organizationId },
+          total: Number(l.$extras.total ?? 0),
+        })),
+      },
+    })
+  }
+
+  /** GET /api/v1/admin/devices/:id (admin) */
+  async showAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.showScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** POST /api/v1/admin/devices — body : { organizationId, ...champs de POST /devices } */
+  async storeAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { organizationId } = await ctx.request.validateUsing(targetOrganizationValidator)
+    const organisation = await OrganizationModel.query()
+      .where('id', organizationId)
+      .whereNull('deleted_at')
+      .select('id')
+      .first()
+    if (!organisation) {
+      return ctx.response.notFound({
+        error: { code: 'E_NOT_FOUND', message: 'Organisation introuvable', details: {} },
+      })
+    }
+    return this.storeScoped(ctx, organizationId)
+  }
+
+  /** POST /api/v1/admin/devices/:id/flespi/sync (admin) */
+  async syncFlespiAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.syncFlespiScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** PATCH /api/v1/admin/devices/:id (admin) */
+  async updateAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.updateScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** DELETE /api/v1/admin/devices/:id (admin) */
+  async destroyAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.destroyScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** POST /api/v1/admin/devices/:id/assignment — véhicule de la MÊME organisation que le boîtier (admin) */
+  async assignAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.assignScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** DELETE /api/v1/admin/devices/:id/assignment (admin) */
+  async unassignAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.unassignScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** GET /api/v1/admin/devices/:id/telemetry (admin) */
+  async liveTelemetryAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.liveTelemetryScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** GET /api/v1/admin/devices/:id/telemetry/history (admin) */
+  async liveHistoryAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.liveHistoryScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** GET /api/v1/admin/devices/:id/flespi (admin) */
+  async flespiStatusAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.flespiStatusScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** GET /api/v1/admin/devices/:id/flespi/logs (admin) */
+  async flespiLogsAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.flespiLogsScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  /** GET /api/v1/admin/devices/:id/flespi/telemetry (admin) */
+  async flespiTelemetryAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.flespiTelemetryScoped(ctx, PLATFORM_SCOPE)
+  }
+
+  // -------------------------------------------------------------------------
+  //  Implémentations partagées client / admin : seul le périmètre change.
+  // -------------------------------------------------------------------------
+
+  private async showScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouver(ctx, scope)
     if (!device) return this.introuvable(ctx)
 
     const affectation = await db.rawQuery(
@@ -126,21 +442,8 @@ export default class DeviceController {
     })
   }
 
-  /**
-   * POST /api/v1/devices
-   *
-   * `syncFlespi: true` → crée (ou rattache) le device chez flespi sur le canal
-   * `flespiChannelId` (défaut FLESPI_CHANNEL_ID), avec le type
-   * `flespiDeviceType` (défaut « Micodus MV730 ») résolu dans le protocole du
-   * canal, puis l'enregistre en base.
-   *
-   * Micodus : fournir `terminalId` (ID de l'étiquette) ou `flespiIdent`.
-   * L'IMEI seul ne suffit pas — cf. flespi_ident.ts.
-   */
-  async store(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
+  private async storeScoped(ctx: HttpContext, organizationId: string) {
     const payload = await ctx.request.validateUsing(createDeviceValidator)
-    const org = toExecutionContext(ctx).organizationId
 
     let provision: ProvisionResult | null = null
     let flespiDeviceId = payload.flespiDeviceId ?? null
@@ -194,7 +497,7 @@ export default class DeviceController {
         simMsisdn: payload.simMsisdn ?? null,
         simIccid: payload.simIccid ?? null,
         simOperator: payload.simOperator ?? null,
-        organizationId: org,
+        organizationId,
         flespiDeviceId,
         flespiChannelId: flespiDeviceId ? channelId : null,
         flespiIdent,
@@ -224,16 +527,9 @@ export default class DeviceController {
     }
   }
 
-  /**
-   * POST /api/v1/devices/:id/flespi/sync
-   *
-   * Rattache après coup un boîtier SISBM à flespi (créé en stock sans
-   * `syncFlespi`, ou device flespi recréé). Mêmes garde-fous que la création.
-   */
-  async syncFlespi(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
+  private async syncFlespiScoped(ctx: HttpContext, scope: TenantScope) {
     const payload = await ctx.request.validateUsing(syncDeviceFlespiValidator)
-    const device = await this.trouver(ctx)
+    const device = await this.trouver(ctx, scope)
     if (!device) return this.introuvable(ctx)
     if (device.flespiDeviceId) {
       const existant = await this.gateway.get(device.flespiDeviceId).catch(() => null)
@@ -292,11 +588,9 @@ export default class DeviceController {
     })
   }
 
-  /** PATCH /api/v1/devices/:id */
-  async update(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
+  private async updateScoped(ctx: HttpContext, scope: TenantScope) {
     const payload = await ctx.request.validateUsing(updateDeviceValidator)
-    const device = await this.trouver(ctx)
+    const device = await this.trouver(ctx, scope)
     if (!device) return this.introuvable(ctx)
 
     const { name, flespiIdent, ...local } = payload
@@ -326,15 +620,8 @@ export default class DeviceController {
     return ctx.response.ok({ data: device.serialize() })
   }
 
-  /**
-   * DELETE /api/v1/devices/:id
-   *
-   * Flespi d'abord, base ensuite. Si Flespi échoue, le boîtier n'est pas
-   * archivé chez nous et l'opération reste rejouable.
-   */
-  async destroy(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
-    const device = await this.trouver(ctx)
+  private async destroyScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouver(ctx, scope)
     if (!device) return this.introuvable(ctx)
 
     // Un boîtier encore monté ne se supprime pas : l'historique du véhicule
@@ -384,16 +671,7 @@ export default class DeviceController {
     return ctx.response.noContent()
   }
 
-  /**
-   * POST /api/v1/devices/:id/assignment — monter le boîtier sur un véhicule.
-   *
-   * L'affectation est DATÉE. Les contraintes CM-01/CM-02 (`EXCLUDE USING gist`)
-   * garantissent en base qu'un boîtier n'est jamais sur deux véhicules à la
-   * fois. En cas de chevauchement, PostgreSQL lève une `exclusion_violation`
-   * traduite en 409 par le gestionnaire d'exceptions.
-   */
-  async assign(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
+  private async assignScoped(ctx: HttpContext, scope: TenantScope) {
     const { vehicleId, installNotes } = await ctx.request.validateUsing(assignDeviceValidator)
     const contexte = toExecutionContext(ctx)
 
@@ -407,13 +685,15 @@ export default class DeviceController {
      * boîtier ou un véhicule introuvable — typiquement l'inversion des deux
      * identifiants, ou une base réinitialisée depuis.
      */
-    const device = await this.trouver(ctx)
+    const device = await this.trouver(ctx, scope)
     if (!device) return this.introuvable(ctx)
 
     const vehicule = await db
       .from('vehicles')
       .where('id', vehicleId)
-      .where('organization_id', contexte.organizationId)
+      // Même organisation que le BOÎTIER (et non que l'acteur) : en admin, le
+      // super_admin n'appartient pas à l'organisation du boîtier.
+      .where('organization_id', device.organizationId)
       .whereNull('deleted_at')
       .select('id')
       .first()
@@ -451,47 +731,39 @@ export default class DeviceController {
     return ctx.response.created({ data: { deviceId: ctx.params.id, vehicleId } })
   }
 
-  /** DELETE /api/v1/devices/:id/assignment — démonter le boîtier. */
-  async unassign(ctx: HttpContext) {
-    await authorize(ctx, 'manageVehicles')
+  private async unassignScoped(ctx: HttpContext, scope: TenantScope) {
     const contexte = toExecutionContext(ctx)
+
+    // Le boîtier est cherché d'abord DANS le périmètre : sans cela, l'UPDATE
+    // ci-dessous démontait le boîtier d'une autre organisation connu par son id.
+    const device = await this.trouver(ctx, scope)
+    if (!device) return this.introuvable(ctx)
 
     const r = await db.rawQuery(
       `UPDATE device_assignments
           SET period = tstzrange(lower(period), now()), removed_by = :actor
         WHERE device_id = :device AND upper_inf(period)
         RETURNING id`,
-      { device: ctx.params.id, actor: contexte.actorId ?? null } as never
+      { device: device.id, actor: contexte.actorId ?? null } as never
     )
     if (!r.rows?.length) {
       return ctx.response.notFound({
         error: { code: 'E_NOT_FOUND', message: 'Aucune affectation en cours', details: {} },
       })
     }
-    const device = await this.trouver(ctx)
-    if (device) await this.invalider(device)
+    await this.invalider(device)
     return ctx.response.noContent()
   }
 
-  /**
-   * GET /api/v1/devices/:id/telemetry — dernier message CHEZ FLESPI.
-   *
-   * Outil de DIAGNOSTIC : il interroge Flespi directement, pas notre base.
-   * Il répond à la question « le boîtier émet-il, et est-ce nous qui perdons
-   * les trames ? ». La source de vérité de l'historique reste `positions`.
-   */
-  async liveTelemetry(ctx: HttpContext) {
-    await authorize(ctx, 'viewVehicles')
-    const device = await this.trouverRattache(ctx)
+  private async liveTelemetryScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouverRattache(ctx, scope)
     if (!device) return
     const message = await this.gateway.lastMessage(device.flespiDeviceId!)
     return ctx.response.ok({ data: { source: 'flespi', message } })
   }
 
-  /** GET /api/v1/devices/:id/telemetry/history?from=&to=&count= */
-  async liveHistory(ctx: HttpContext) {
-    await authorize(ctx, 'viewVehicles')
-    const device = await this.trouverRattache(ctx)
+  private async liveHistoryScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouverRattache(ctx, scope)
     if (!device) return
 
     const q = await ctx.request.validateUsing(logQueryValidator)
@@ -515,19 +787,8 @@ export default class DeviceController {
     return ctx.response.ok({ data: { source: 'flespi', count: messages.length, messages } })
   }
 
-  /**
-   * GET /api/v1/devices/:id/flespi — DIAGNOSTIC COMPLET du rattachement.
-   *
-   * Répond en un appel aux questions d'une mise en service :
-   *   - le device existe-t-il chez flespi, avec quel ident et quel type ?
-   *   - son protocole est-il celui du canal ? (sinon il ne recevra rien)
-   *   - l'ident SISBM et l'ident flespi coïncident-ils ?
-   *   - le boîtier est-il connecté, quand a-t-il émis pour la dernière fois ?
-   *   - quelle est sa dernière position connue ?
-   */
-  async flespiStatus(ctx: HttpContext) {
-    await authorize(ctx, 'viewVehicles')
-    const device = await this.trouverRattache(ctx)
+  private async flespiStatusScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouverRattache(ctx, scope)
     if (!device) return
 
     const gw = this.gateway
@@ -616,10 +877,8 @@ export default class DeviceController {
     })
   }
 
-  /** GET /api/v1/devices/:id/flespi/logs?from=&to=&count= — connexions, erreurs de décodage, modifications. */
-  async flespiLogs(ctx: HttpContext) {
-    await authorize(ctx, 'viewVehicles')
-    const device = await this.trouverRattache(ctx)
+  private async flespiLogsScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouverRattache(ctx, scope)
     if (!device) return
     const q = await ctx.request.validateUsing(logQueryValidator)
     const logs = await this.gateway.logs(device.flespiDeviceId!, {
@@ -630,17 +889,15 @@ export default class DeviceController {
     return ctx.response.ok({ data: logs })
   }
 
-  /** GET /api/v1/devices/:id/flespi/telemetry — dernière valeur de chaque paramètre. */
-  async flespiTelemetry(ctx: HttpContext) {
-    await authorize(ctx, 'viewVehicles')
-    const device = await this.trouverRattache(ctx)
+  private async flespiTelemetryScoped(ctx: HttpContext, scope: TenantScope) {
+    const device = await this.trouverRattache(ctx, scope)
     if (!device) return
     return ctx.response.ok({ data: await this.gateway.telemetry(device.flespiDeviceId!) })
   }
 
   /** Boîtier de l'organisation ET rattaché à flespi ; sinon répond (404 / 409) et renvoie null. */
-  private async trouverRattache(ctx: HttpContext): Promise<DeviceModel | null> {
-    const device = await this.trouver(ctx)
+  private async trouverRattache(ctx: HttpContext, scope: TenantScope): Promise<DeviceModel | null> {
+    const device = await this.trouver(ctx, scope)
     if (!device) {
       this.introuvable(ctx)
       return null
@@ -660,13 +917,10 @@ export default class DeviceController {
 
   // -------------------------------------------------------------------------
 
-  private async trouver(ctx: HttpContext): Promise<DeviceModel | null> {
-    const org = toExecutionContext(ctx).organizationId
-    return DeviceModel.query()
-      .where('id', ctx.params.id)
-      .where('organization_id', org)
-      .whereNull('deleted_at')
-      .first()
+  /** Cherché DANS le périmètre : un id d'un autre client donne 404, pas une fuite. */
+  private trouver(ctx: HttpContext, scope: TenantScope): Promise<DeviceModel | null> {
+    const query = DeviceModel.query().where('id', ctx.params.id).whereNull('deleted_at')
+    return applyScope(query, scope).first()
   }
 
   private introuvable(ctx: HttpContext) {

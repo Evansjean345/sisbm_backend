@@ -15,6 +15,21 @@ import {
 } from '#presentation/http/validators/identity/user_validators'
 import { authorize, permissionsOf } from '#presentation/http/support/authorize'
 import { toExecutionContext } from '#presentation/http/support/execution_context'
+import {
+  adminListUsersValidator,
+  adminOrganizationFilterValidator,
+  targetOrganizationValidator,
+} from '#presentation/http/validators/admin/admin_validators'
+import {
+  PLATFORM_SCOPE,
+  applyScope,
+  authorizePlatform,
+  countsBy,
+  organizationsOf,
+  ownScope,
+  serializeWithOrganizations,
+  type TenantScope,
+} from '#presentation/http/support/platform_scope'
 
 /**
  * =========================================================================
@@ -53,61 +68,10 @@ export default class UserController {
     return ctx.response.ok(resultat.toJSON())
   }
 
-  /** GET /api/v1/users/admin -- superAdminRoutes */
-  async indexAll(ctx: HttpContext) {
-    await authorize(ctx, 'manageUsers')
-    const { page = 1, perPage = 25, status } = await ctx.request.validateUsing(listUsersValidator)
-    //const org = toExecutionContext(ctx).organizationId
-
-    const query = UserModel.query()
-      //.where('organization_id', org)
-      .whereNull('deleted_at')
-      .orderBy('full_name')
-    if (status) query.where('status', status)
-
-    const resultat = await query.paginate(page, Math.min(perPage, 100))
-    return ctx.response.ok(resultat.toJSON())
-  }
-
   /** GET /api/v1/users/:id */
   async show(ctx: HttpContext) {
     await authorize(ctx, 'manageUsers')
-    const utilisateur = await this.trouver(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    const role = await RoleModel.query()
-      .where('id', utilisateur.roleId)
-      .select('id', 'code', 'name', 'permissions')
-      .first()
-
-    return ctx.response.ok({
-      data: {
-        ...utilisateur.serialize(),
-        role: role
-          ? { id: role.id, code: role.code, name: role.name, permissions: role.permissions }
-          : null,
-      },
-    })
-  }
-  /** GET /api/v1/users/:id/admin --superAdminRoutes */
-  async showALL(ctx: HttpContext) {
-    await authorize(ctx, 'manageUsers')
-    const utilisateur = await this.findALL(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    const role = await RoleModel.query()
-      .where('id', utilisateur.roleId)
-      .select('id', 'code', 'name', 'permissions')
-      .first()
-
-    return ctx.response.ok({
-      data: {
-        ...utilisateur.serialize(),
-        role: role
-          ? { id: role.id, code: role.code, name: role.name, permissions: role.permissions }
-          : null,
-      },
-    })
+    return this.afficher(ctx, ownScope(ctx))
   }
 
   /**
@@ -121,74 +85,13 @@ export default class UserController {
    */
   async store(ctx: HttpContext) {
     await authorize(ctx, 'manageUsers')
-    const payload = await ctx.request.validateUsing(createUserValidator)
-    const contexte = toExecutionContext(ctx)
-
-    const result = await this.createOrganizationUser.execute({
-      context: contexte,
-      actorPermissions: await permissionsOf(ctx),
-      organizationId: contexte.organizationId,
-      user: payload,
-    })
-
-    if (!result.ok) {
-      return ctx.response.status(result.error.httpStatus).send({ error: result.error.toJSON() })
-    }
-    return ctx.response.created({ data: result.value })
+    return this.creer(ctx, toExecutionContext(ctx).organizationId)
   }
 
   /** PATCH /api/v1/users/:id */
   async update(ctx: HttpContext) {
     await authorize(ctx, 'manageUsers')
-    const payload = await ctx.request.validateUsing(updateUserValidator)
-    const utilisateur = await this.trouver(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    // Changer de rôle, c'est attribuer un rôle : même règle qu'à la création.
-    // Sans ce contrôle, `PATCH { roleId }` était une porte d'escalade.
-    if (payload.roleId && payload.roleId !== utilisateur.roleId) {
-      const controle = await this.roleAssignment.check({
-        roleId: payload.roleId,
-        targetOrganizationId: utilisateur.organizationId,
-        actorPermissions: await permissionsOf(ctx),
-      })
-      if (!controle.ok) {
-        return ctx.response
-          .status(controle.error.httpStatus)
-          .send({ error: controle.error.toJSON() })
-      }
-    }
-
-    utilisateur.merge(payload)
-    await utilisateur.save()
-    return ctx.response.ok({ data: utilisateur.serialize() })
-  }
-
-  /** PATCH /api/v1/users/:id/admin */
-  async updateALL(ctx: HttpContext) {
-    await authorize(ctx, 'manageUsers')
-    const payload = await ctx.request.validateUsing(updateUserValidator)
-    const utilisateur = await this.findALL(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    // Changer de rôle, c'est attribuer un rôle : même règle qu'à la création.
-    // Sans ce contrôle, `PATCH { roleId }` était une porte d'escalade.
-    if (payload.roleId && payload.roleId !== utilisateur.roleId) {
-      const controle = await this.roleAssignment.check({
-        roleId: payload.roleId,
-        targetOrganizationId: utilisateur.organizationId,
-        actorPermissions: await permissionsOf(ctx),
-      })
-      if (!controle.ok) {
-        return ctx.response
-          .status(controle.error.httpStatus)
-          .send({ error: controle.error.toJSON() })
-      }
-    }
-
-    utilisateur.merge(payload)
-    await utilisateur.save()
-    return ctx.response.ok({ data: utilisateur.serialize() })
+    return this.modifier(ctx, ownScope(ctx))
   }
 
   /**
@@ -225,61 +128,241 @@ export default class UserController {
   /** POST /api/v1/users/:id/suspend */
   async suspend(ctx: HttpContext) {
     await authorize(ctx, 'manageUsers')
-    const utilisateur = await this.trouver(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    utilisateur.status = 'suspended'
-    await utilisateur.save()
-    // Suspendre sans révoquer les jetons laisserait le compte actif jusqu'à
-    // leur expiration — sept jours.
-    await UserModel.revokeAllTokens(utilisateur.id)
-
-    return ctx.response.ok({ data: utilisateur.serialize() })
-  }
-  /** POST /api/v1/users/:id/suspend/admin */
-  async suspendALL(ctx: HttpContext) {
-    await authorize(ctx, 'manageUsers')
-    const utilisateur = await this.findALL(ctx)
-    if (!utilisateur) return this.introuvable(ctx)
-
-    utilisateur.status = 'suspended'
-    await utilisateur.save()
-    // Suspendre sans révoquer les jetons laisserait le compte actif jusqu'à
-    // leur expiration — sept jours.
-    await UserModel.revokeAllTokens(utilisateur.id)
-
-    return ctx.response.ok({ data: utilisateur.serialize() })
+    return this.suspendre(ctx, ownScope(ctx))
   }
 
   /** DELETE /api/v1/users/:id — suppression logique. */
   async destroy(ctx: HttpContext) {
     await authorize(ctx, 'manageUsers')
-    const contexte = toExecutionContext(ctx)
-    const utilisateur = await this.trouver(ctx)
+    return this.supprimer(ctx, ownScope(ctx))
+  }
+
+  // =========================================================================
+  //  TABLEAU DE BORD ADMIN — toutes organisations (joker `*` exigé)
+  // =========================================================================
+
+  /**
+   * GET /api/v1/admin/users
+   * ?organizationId=&roleId=&status=&search=&page=&perPage=
+   *
+   * Chaque ligne porte son `organization` et son `role` : le tableau de bord
+   * affiche une liste inter-clients sans requête supplémentaire.
+   */
+  async indexAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const {
+      page = 1,
+      perPage = 25,
+      status,
+      organizationId,
+      roleId,
+      search,
+    } = await ctx.request.validateUsing(adminListUsersValidator)
+
+    const query = UserModel.query().whereNull('deleted_at').orderBy('full_name')
+    if (organizationId) query.where('organization_id', organizationId)
+    if (roleId) query.where('role_id', roleId)
+    if (status) query.where('status', status)
+    if (search) {
+      query.where((q) =>
+        q.whereILike('full_name', `%${search}%`).orWhereILike('email', `%${search}%`)
+      )
+    }
+
+    const resultat = await query.paginate(page, Math.min(perPage, 100))
+    const corps = await serializeWithOrganizations(resultat)
+
+    const roleIds = [...new Set(resultat.all().map((u) => u.roleId))]
+    const roles = roleIds.length
+      ? await RoleModel.query().whereIn('id', roleIds).select('id', 'code', 'name')
+      : []
+    const parId = Object.fromEntries(
+      roles.map((r) => [r.id, { id: r.id, code: r.code, name: r.name }])
+    )
+
+    return ctx.response.ok({
+      meta: corps.meta,
+      data: corps.data.map((u, i) => ({ ...u, role: parId[resultat.all()[i].roleId] ?? null })),
+    })
+  }
+
+  /** GET /api/v1/admin/users/stats?organizationId= — compteurs par statut et par organisation. */
+  async statsAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { organizationId } = await ctx.request.validateUsing(adminOrganizationFilterValidator)
+
+    const base = () => {
+      const q = UserModel.query().whereNull('deleted_at')
+      if (organizationId) q.where('organization_id', organizationId)
+      return q
+    }
+
+    const [parStatut, parOrganisation] = await Promise.all([
+      base().select('status').count('* as total').groupBy('status'),
+      base().select('organization_id').count('* as total').groupBy('organization_id'),
+    ])
+    const compteurs = countsBy(parStatut, 'status')
+    const organisations = await organizationsOf(parOrganisation.map((l) => l.organizationId))
+
+    return ctx.response.ok({
+      data: {
+        total: Object.values(compteurs).reduce((a, b) => a + b, 0),
+        byStatus: compteurs,
+        byOrganization: parOrganisation.map((l) => ({
+          organization: organisations[l.organizationId] ?? { id: l.organizationId },
+          total: Number(l.$extras.total ?? 0),
+        })),
+      },
+    })
+  }
+
+  /** GET /api/v1/admin/users/:id */
+  async showAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.afficher(ctx, PLATFORM_SCOPE)
+  }
+
+  /**
+   * POST /api/v1/admin/users — body : { organizationId, ...champs de POST /users }
+   *
+   * Même cas d'usage que la création client : le rôle doit appartenir à
+   * l'organisation CIBLE (ou être un rôle système) et la non-escalade
+   * s'applique — l'organisation inexistante ou inactive est refusée.
+   */
+  async storeAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const { organizationId } = await ctx.request.validateUsing(targetOrganizationValidator)
+    return this.creer(ctx, organizationId)
+  }
+
+  /** PATCH /api/v1/admin/users/:id */
+  async updateAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.modifier(ctx, PLATFORM_SCOPE)
+  }
+
+  /** POST /api/v1/admin/users/:id/suspend */
+  async suspendAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.suspendre(ctx, PLATFORM_SCOPE)
+  }
+
+  /**
+   * POST /api/v1/admin/users/:id/activate — lève une suspension.
+   *
+   * Remet aussi à zéro le compteur d'échecs et le verrouillage : réactiver un
+   * compte resté verrouillé ne servirait à rien.
+   */
+  async activateAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    const utilisateur = await this.trouver(ctx, PLATFORM_SCOPE)
     if (!utilisateur) return this.introuvable(ctx)
 
-    if (utilisateur.id === contexte.actorId) {
+    utilisateur.status = 'active'
+    utilisateur.failedAttempts = 0
+    utilisateur.lockedUntil = null
+    await utilisateur.save()
+    return ctx.response.ok({ data: utilisateur.serialize() })
+  }
+
+  /** DELETE /api/v1/admin/users/:id — suppression logique. */
+  async destroyAll(ctx: HttpContext) {
+    await authorizePlatform(ctx)
+    return this.supprimer(ctx, PLATFORM_SCOPE)
+  }
+
+  // -------------------------------------------------------------------------
+  //  Implémentations partagées client / admin : seul le périmètre change.
+  // -------------------------------------------------------------------------
+
+  private async afficher(ctx: HttpContext, scope: TenantScope) {
+    const utilisateur = await this.trouver(ctx, scope)
+    if (!utilisateur) return this.introuvable(ctx)
+
+    const role = await RoleModel.query()
+      .where('id', utilisateur.roleId)
+      .select('id', 'code', 'name', 'permissions')
+      .first()
+    const organisations = await organizationsOf([utilisateur.organizationId])
+
+    return ctx.response.ok({
+      data: {
+        ...utilisateur.serialize(),
+        organization: organisations[utilisateur.organizationId] ?? null,
+        role: role
+          ? { id: role.id, code: role.code, name: role.name, permissions: role.permissions }
+          : null,
+      },
+    })
+  }
+
+  private async creer(ctx: HttpContext, organizationId: string) {
+    const payload = await ctx.request.validateUsing(createUserValidator)
+
+    const result = await this.createOrganizationUser.execute({
+      context: toExecutionContext(ctx),
+      actorPermissions: await permissionsOf(ctx),
+      organizationId,
+      user: payload,
+    })
+
+    if (!result.ok) {
+      return ctx.response.status(result.error.httpStatus).send({ error: result.error.toJSON() })
+    }
+    return ctx.response.created({ data: result.value })
+  }
+
+  private async modifier(ctx: HttpContext, scope: TenantScope) {
+    const payload = await ctx.request.validateUsing(updateUserValidator)
+    const utilisateur = await this.trouver(ctx, scope)
+    if (!utilisateur) return this.introuvable(ctx)
+
+    // Changer de rôle, c'est attribuer un rôle : même règle qu'à la création.
+    // Sans ce contrôle, `PATCH { roleId }` était une porte d'escalade.
+    // En admin aussi : le rôle doit exister dans l'organisation DE L'UTILISATEUR.
+    if (payload.roleId && payload.roleId !== utilisateur.roleId) {
+      const controle = await this.roleAssignment.check({
+        roleId: payload.roleId,
+        targetOrganizationId: utilisateur.organizationId,
+        actorPermissions: await permissionsOf(ctx),
+      })
+      if (!controle.ok) {
+        return ctx.response
+          .status(controle.error.httpStatus)
+          .send({ error: controle.error.toJSON() })
+      }
+    }
+
+    utilisateur.merge(payload)
+    await utilisateur.save()
+    return ctx.response.ok({ data: utilisateur.serialize() })
+  }
+
+  private async suspendre(ctx: HttpContext, scope: TenantScope) {
+    const utilisateur = await this.trouver(ctx, scope)
+    if (!utilisateur) return this.introuvable(ctx)
+    if (utilisateur.id === toExecutionContext(ctx).actorId) {
       return ctx.response.conflict({
         error: {
-          code: 'E_SELF_DELETE',
-          message: 'Un utilisateur ne peut pas supprimer son propre compte',
+          code: 'E_SELF_SUSPEND',
+          message: 'Un utilisateur ne peut pas suspendre son propre compte',
           details: {},
         },
       })
     }
 
-    utilisateur.deletedAt = DateTime.now()
     utilisateur.status = 'suspended'
     await utilisateur.save()
+    // Suspendre sans révoquer les jetons laisserait le compte actif jusqu'à
+    // leur expiration — sept jours.
     await UserModel.revokeAllTokens(utilisateur.id)
 
-    return ctx.response.noContent()
+    return ctx.response.ok({ data: utilisateur.serialize() })
   }
-  /** DELETE /api/v1/users/:id/admin — suppression logique. */
-  async destroyALL(ctx: HttpContext) {
-    await authorize(ctx, 'manageUsers')
+
+  private async supprimer(ctx: HttpContext, scope: TenantScope) {
     const contexte = toExecutionContext(ctx)
-    const utilisateur = await this.findALL(ctx)
+    const utilisateur = await this.trouver(ctx, scope)
     if (!utilisateur) return this.introuvable(ctx)
 
     if (utilisateur.id === contexte.actorId) {
@@ -336,17 +419,10 @@ export default class UserController {
 
   // -------------------------------------------------------------------------
 
-  private async trouver(ctx: HttpContext): Promise<UserModel | null> {
-    const org = toExecutionContext(ctx).organizationId
-    return UserModel.query()
-      .where('id', ctx.params.id)
-      .where('organization_id', org)
-      .whereNull('deleted_at')
-      .first()
-  }
-
-  private async findALL(ctx: HttpContext): Promise<UserModel | null> {
-    return UserModel.query().where('id', ctx.params.id).whereNull('deleted_at').first()
+  /** Cherché DANS le périmètre : un id d'un autre client donne 404, pas une fuite. */
+  private async trouver(ctx: HttpContext, scope: TenantScope): Promise<UserModel | null> {
+    const query = UserModel.query().where('id', ctx.params.id).whereNull('deleted_at')
+    return applyScope(query, scope).first()
   }
 
   private introuvable(ctx: HttpContext) {
